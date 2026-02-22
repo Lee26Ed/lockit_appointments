@@ -3,21 +3,42 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	"log"
-	"net/http"
+	"log/slog"
+	"os"
 	"time"
 
 	_ "github.com/lib/pq"
 )
 
-func main() {
+const appVersion = "1.0.0"
 
-	// ! DONT HARD CODE DSN
-	dsn := "postgres://lockit_appointments:one2enter@localhost/lockit_appointments?sslmode=disable"
+type serverConfig struct {
+    port int 
+    environment string
+	dsn string
+}
+
+type applicationDependencies struct {
+    config serverConfig
+    logger *slog.Logger
+}
+
+func main() {
+	var settings serverConfig
+
+	flag.IntVar(&settings.port, "port", 4000, "Server port")
+    flag.StringVar(&settings.environment, "env", "development",
+                  "Environment(development|staging|production)")
+	flag.StringVar(&settings.dsn, "dsn", "postgres://username:password@localhost/db_name?sslmode=disable", "PostgreSQL DSN")
+    flag.Parse()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// connect to db 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("postgres", settings.dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,22 +55,14 @@ func main() {
 	}
 	fmt.Println("Successfully connected with context timeout")
 
-	// testing context
-	_, err = db.ExecContext(ctx, "SELECT pg_sleep(10);")
-	if err != nil {
-		if err == context.DeadlineExceeded {
-			log.Println("Context cancelled: Postgres took too long")
-		} else {
-			log.Fatal("Query error: ", err)
-		}
-		return
-	}
+	app := &applicationDependencies {
+        config: settings,
+        logger: logger,
+    }
 	
-	mux := routes()
-
-	fmt.Print("Server is running on port 4000\n")
-	err = http.ListenAndServe(":4000", mux)
+	err = app.Serve()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+
 }
