@@ -1,0 +1,10 @@
+CREATE TABLE businesses (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL UNIQUE,
+  email VARCHAR(255),
+  phone VARCHAR(20),
+  logo_url VARCHAR(255),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP
+);

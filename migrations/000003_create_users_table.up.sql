@@ -1,7 +1,11 @@
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW()
-)
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  username VARCHAR(100) NOT NULL,
+  password_hash VARCHAR(255),
+  role_id INT REFERENCES roles(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP
+);
+
+CREATE INDEX idx_users_role_id ON users(role_id);
