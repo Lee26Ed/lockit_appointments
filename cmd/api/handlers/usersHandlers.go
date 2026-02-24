@@ -129,33 +129,33 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse the request body for updates
-	var input struct {
+	var clientData struct {
 		Username    *string `json:"username"`
 		Password    *string `json:"password"`
 		Email       *string `json:"email"`
 		RoleID      *int    `json:"role_id"`
 	}
 
-	err = utils.ReadJSON(w, r, &input)
+	err = utils.ReadJSON(w, r, &clientData)
 	if err != nil {
 		h.badRequestResponse(w, r, err)
 		return
 	}
 
 		// Update only the fields that were provided
-	if input.Username != nil {
-		user.Username = *input.Username
+	if clientData.Username != nil {
+		user.Username = *clientData.Username
 	}
-	if input.Email != nil {
-		user.Email = *input.Email
+	if clientData.Email != nil {
+		user.Email = *clientData.Email
 	}
-	if input.RoleID != nil {
-		user.RoleID = *input.RoleID
+	if clientData.RoleID != nil {
+		user.RoleID = *clientData.RoleID
 	}
 
 	// Update password if provided
-	if input.Password != nil {
-		err = user.Password.SetPassword(*input.Password)
+	if clientData.Password != nil {
+		err = user.Password.SetPassword(*clientData.Password)
 		if err != nil {
 			h.serverErrorResponse(w, r, err)
 			return
