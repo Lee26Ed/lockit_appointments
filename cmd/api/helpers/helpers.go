@@ -1,4 +1,4 @@
-package main
+package helpers
 
 import (
 	"encoding/json"
@@ -9,10 +9,10 @@ import (
 	"strings"
 )
 
-type envelope map[string]any
+type Envelope map[string]any
 
-func (a *applicationDependencies)writeJSON(w http.ResponseWriter,
-                                           status int, data envelope,
+func WriteJSON(w http.ResponseWriter,
+                                           status int, data Envelope,
                                            headers http.Header) error  {
     jsResponse, err := json.MarshalIndent(data, "", "\t")
     if err != nil {
@@ -38,7 +38,7 @@ func (a *applicationDependencies)writeJSON(w http.ResponseWriter,
 
 }
 
-func (a *applicationDependencies)readJSON(w http.ResponseWriter,
+func ReadJSON(w http.ResponseWriter,
                                           r *http.Request,
                                           destination any) error { 
 

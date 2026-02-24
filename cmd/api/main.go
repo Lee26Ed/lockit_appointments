@@ -10,35 +10,32 @@ import (
 	"os"
 	"time"
 
+	"github.com/Lee26Ed/lockit_appointments/cmd/api/types"
 	_ "github.com/lib/pq"
 )
 
 const appVersion = "1.0.0"
 
-type serverConfig struct {
-    port int 
-    environment string
-	dsn string
-}
 
 type applicationDependencies struct {
-    config serverConfig
+    config types.ServerConfig
     logger *slog.Logger
 }
 
 func main() {
-	var settings serverConfig
+	var settings types.ServerConfig
 
-	flag.IntVar(&settings.port, "port", 4000, "Server port")
-    flag.StringVar(&settings.environment, "env", "development",
+	flag.IntVar(&settings.Port, "port", 4000, "Server port")
+    flag.StringVar(&settings.Environment, "env", "development",
                   "Environment(development|staging|production)")
-	flag.StringVar(&settings.dsn, "dsn", "postgres://username:password@localhost/db_name?sslmode=disable", "PostgreSQL DSN")
+	flag.StringVar(&settings.DSN, "dsn", "postgres://username:password@localhost/db_name?sslmode=disable", "PostgreSQL DSN")
     flag.Parse()
+	settings.AppVersion = appVersion
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// connect to db 
-	db, err := sql.Open("postgres", settings.dsn)
+	db, err := sql.Open("postgres", settings.DSN)
 	if err != nil {
 		log.Fatal(err)
 	}

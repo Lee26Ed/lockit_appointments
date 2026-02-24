@@ -1,13 +1,20 @@
 package main
 
-import "net/http"
+import (
+	"net/http"
 
-func (app *applicationDependencies) Routes() *http.ServeMux{
-	mux := http.NewServeMux()
+	"github.com/Lee26Ed/lockit_appointments/cmd/api/handlers"
+	"github.com/julienschmidt/httprouter"
+)
 
-	mux.HandleFunc("/healthcheck", app.HealthcheckHandler)
-	mux.HandleFunc("/appointments", app.GetAppointmentsHandler)
-	mux.HandleFunc("/appointments/create", app.CreateAppointmentHandler)
-	return mux
+func (app *applicationDependencies) Routes() http.Handler{
+	router := httprouter.New()
+
+	h := handlers.NewHandler(app.config, app.logger)
+
+	router.HandlerFunc(http.MethodGet, "/healthcheck", h.HealthcheckHandler)
+	router.HandlerFunc(http.MethodGet, "/appointments", h.GetAppointmentsHandler)
+	router.HandlerFunc(http.MethodPost, "/appointments/create", h.CreateAppointmentHandler)
+	return router
 
 }

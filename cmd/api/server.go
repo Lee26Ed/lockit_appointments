@@ -10,7 +10,7 @@ import (
 
 func (app *applicationDependencies) Serve() error {
 	apiServer := &http.Server {
-        Addr: fmt.Sprintf(":%d", app.config.port),
+        Addr: fmt.Sprintf(":%d", app.config.Port),
         Handler: app.Routes(),
         IdleTimeout: time.Minute,
         ReadTimeout: 5 * time.Second,
@@ -18,7 +18,7 @@ func (app *applicationDependencies) Serve() error {
         ErrorLog: slog.NewLogLogger(app.logger.Handler(), slog.LevelError),
     }
 
-	app.logger.Info("Starting server", "address", apiServer.Addr, "env", app.config.environment)
+	app.logger.Info("Starting server", "address", apiServer.Addr, "env", app.config.Environment)
 
 	err := apiServer.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
