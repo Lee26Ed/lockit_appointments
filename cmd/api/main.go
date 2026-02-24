@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Lee26Ed/lockit_appointments/cmd/api/types"
+	"github.com/Lee26Ed/lockit_appointments/cmd/internal/data"
 	_ "github.com/lib/pq"
 )
 
@@ -20,6 +21,7 @@ const appVersion = "1.0.0"
 type applicationDependencies struct {
     config types.ServerConfig
     logger *slog.Logger
+	models *data.Models
 }
 
 func main() {
@@ -55,6 +57,7 @@ func main() {
 	app := &applicationDependencies {
         config: settings,
         logger: logger,
+        models: data.CreateModels(db),
     }
 	
 	err = app.Serve()

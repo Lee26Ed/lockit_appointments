@@ -10,11 +10,14 @@ import (
 func (app *applicationDependencies) Routes() http.Handler{
 	router := httprouter.New()
 
-	h := handlers.NewHandler(app.config, app.logger)
+	h := handlers.NewHandler(app.config, app.logger, app.models)
 
 	router.HandlerFunc(http.MethodGet, "/healthcheck", h.HealthcheckHandler)
 	router.HandlerFunc(http.MethodGet, "/appointments", h.GetAppointmentsHandler)
 	router.HandlerFunc(http.MethodPost, "/appointments/create", h.CreateAppointmentHandler)
+
+	// * User routes
+	router.HandlerFunc(http.MethodPost, "/users", h.CreateUserHandler)
 	return router
 
 }

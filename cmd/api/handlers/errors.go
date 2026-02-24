@@ -54,3 +54,7 @@ func (h *Handler) editConflictResponse(w http.ResponseWriter, r *http.Request) {
 	message := "unable to update the record due to an edit conflict, please try again"
 	h.errorResponseJSON(w, r, http.StatusConflict, message)
 }
+
+func (h *Handler) failedValidationResponse(w http.ResponseWriter, r *http.Request, errors map[string]string) {
+	h.errorResponseJSON(w, r, http.StatusUnprocessableEntity, errors)
+}
