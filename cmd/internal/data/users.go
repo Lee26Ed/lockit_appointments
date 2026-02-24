@@ -91,9 +91,9 @@ var ErrDuplicateEmail = errors.New("duplicate email")
 func (u *UserModel) Insert(user *User) (*User, error) {
 	query := `
 		INSERT INTO users (
-			email, username, password_hash, role_id
+			email, username, password_hash, role_id, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4
+			$1, $2, $3, $4, $5, $6
 		)
 		RETURNING id, created_at
 	`
@@ -103,6 +103,8 @@ func (u *UserModel) Insert(user *User) (*User, error) {
 		user.Username,
 		user.Password.hash,
 		2,
+		time.Now(),
+		time.Now(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -119,3 +121,154 @@ func (u *UserModel) Insert(user *User) (*User, error) {
 	return user, nil
 }
 
+var ErrRecordNotFound = errors.New("record not found")
+
+// Get a specific user based on its ID
+func (u *UserModel) Get(id int) (*User, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT id, username, email, password_hash, role_id, created_at
+		FROM users
+		WHERE id = $1`
+
+	var user User
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := u.DB.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password.hash,
+		&user.RoleID,
+		&user.CreatedAt,
+	)
+
+	user.UpdatedAt = time.Now()
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+}
+
+func (u *UserModel) GetAll() ([]*User, error) {
+	query := `
+		SELECT id, username, email, password_hash, role_id, created_at
+		FROM users
+		ORDER BY created_at DESC`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := u.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := []*User{}
+	
+	for rows.Next() {
+		var user User
+		err := rows.Scan(
+			&user.ID,
+			&user.Username,
+			&user.Email,
+			&user.Password.hash,
+			&user.RoleID,
+			&user.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, &user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+var ErrEditConflict = errors.New("edit conflict")
+
+// updates a user record in the database
+func (m *UserModel) Update(user *User) (*User, error) {
+	query := `
+		UPDATE users
+		SET username = $1, email = $2, password_hash = $3, role_id = $4,
+			updated_at = NOW()
+		WHERE id = $5
+		RETURNING username, email, role_id, updated_at
+	`
+
+	args := []interface{}{
+		user.Username,
+		user.Email,
+		user.Password.hash,
+		user.RoleID,
+		user.ID,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+		&user.Username,
+		&user.Email,
+		&user.RoleID,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "users_email_key") {
+			return nil, ErrDuplicateEmail
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrEditConflict
+		}
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// Delete removes a user record from the database
+func (u *UserModel) Delete(id int) error {
+	if id < 1 {
+		return ErrRecordNotFound
+	}
+
+	query := `
+		DELETE FROM users
+		WHERE id = $1`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := u.DB.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
+	return nil
+}

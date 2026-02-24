@@ -18,6 +18,10 @@ func (app *applicationDependencies) Routes() http.Handler{
 
 	// * User routes
 	router.HandlerFunc(http.MethodPost, "/users", h.CreateUserHandler)
+	router.HandlerFunc(http.MethodGet, "/users/:id", h.GetUserHandler)
+	router.HandlerFunc(http.MethodGet, "/users", h.GetAllUsersHandler)
+	router.HandlerFunc(http.MethodPut, "/users/:id", h.UpdateUserHandler)
+	router.HandlerFunc(http.MethodDelete, "/users/:id", h.DeleteUserHandler)
 	return router
 
 }
