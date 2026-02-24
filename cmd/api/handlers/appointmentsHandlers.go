@@ -3,12 +3,12 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/Lee26Ed/lockit_appointments/cmd/api/helpers"
+	"github.com/Lee26Ed/lockit_appointments/cmd/api/utils"
 )
 
 func (h *Handler) GetAppointmentsHandler(w http.ResponseWriter, r *http.Request) {
-	appointments := helpers.Envelope{"appointments": []helpers.Envelope{{"id": 1, "title": "Doctor's Appointment", "date": "2024-07-01T10:00:00Z"},{"id": 2, "title": "Meeting with Bob", "date": "2024-07-02T14:00:00Z"}}}
-	helpers.WriteJSON(w, http.StatusOK, appointments, nil)
+	appointments := utils.Envelope{"appointments": []utils.Envelope{{"id": 1, "title": "Doctor's Appointment", "date": "2024-07-01T10:00:00Z"},{"id": 2, "title": "Meeting with Bob", "date": "2024-07-02T14:00:00Z"}}}
+	utils.WriteJSON(w, http.StatusOK, appointments, nil)
 }
 
 func (h *Handler) CreateAppointmentHandler(w http.ResponseWriter, r *http.Request) {
@@ -17,16 +17,16 @@ func (h *Handler) CreateAppointmentHandler(w http.ResponseWriter, r *http.Reques
 		Date  string `json:"date"`
 	}
 
-	err := helpers.ReadJSON(w, r, &input)
+	err := utils.ReadJSON(w, r, &input)
 	if err != nil {
-		errorData := helpers.Envelope{"error": err.Error()}
-		helpers.WriteJSON(w, http.StatusBadRequest, errorData, nil)
+		errorData := utils.Envelope{"error": err.Error()}
+		utils.WriteJSON(w, http.StatusBadRequest, errorData, nil)
 		return
 	}
 
-	err = helpers.WriteJSON(w, http.StatusCreated, helpers.Envelope{"message": "Appointment created successfully"}, nil)
+	err = utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "Appointment created successfully"}, nil)
 	if err != nil {
 		h.Logger.Error("Failed to write JSON response", "error", err)
-		helpers.WriteJSON(w, http.StatusInternalServerError, helpers.Envelope{"error": "Failed to create appointment"}, nil)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "Failed to create appointment"}, nil)
 	}
 }
