@@ -42,3 +42,9 @@ db/migrations/version:
 db/migrations/force:
 	@echo 'Forcing migration to ${version} version...'
 	migrate -path ./migrations -database ${DB_DSN} force ${version}
+
+## db/setup: setup the database (requires DB_NAME, DB_USER, DB_PASSWORD environment variables)
+.PHONY: db/setup
+db/setup:
+	@echo 'Setting up database...'
+	@bash ./scripts/setup_database.sh "${DB_NAME}" "${DB_USER}" "${DB_PASSWORD}" "${DB_HOST}" "${DB_PORT}"
