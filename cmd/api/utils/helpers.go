@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
+	"github.com/Lee26Ed/lockit_appointments/cmd/internal/validator"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -35,7 +37,6 @@ func WriteJSON(w http.ResponseWriter,
     if err != nil {
         return err
     }
-
 
     return nil
 
@@ -117,4 +118,36 @@ func ReadIDParam(r *http.Request) (int64, error) {
 		}
 
 		return id, nil
+}
+
+// this method can cause a validation error when trying to convert the
+// string to a valid integer value
+func GetSingleIntegerParameter( 
+                                 queryParameters url.Values,
+                                 key string,
+                                 defaultValue int,
+                                 v *validator.Validator) int {
+    result := queryParameters.Get(key)
+    if result == "" {
+        return defaultValue
+    }
+   // try to convert to an integer
+   intValue, err := strconv.Atoi(result)
+   if err != nil {
+       v.AddError(key, "must be an integer value")
+       return defaultValue
+   }
+
+   return intValue
+}
+
+func GetSingleQueryParameter( 
+                                 queryParameters url.Values,
+                                 key string,
+                                 defaultValue string) string {
+    result := queryParameters.Get(key)
+    if result == "" {
+        return defaultValue
+    }
+    return result                                                                      
 }

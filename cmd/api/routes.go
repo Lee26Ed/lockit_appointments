@@ -13,15 +13,21 @@ func (app *applicationDependencies) Routes() http.Handler{
 	h := handlers.NewHandler(app.config, app.logger, app.models)
 
 	router.HandlerFunc(http.MethodGet, "/healthcheck", h.HealthcheckHandler)
-	router.HandlerFunc(http.MethodGet, "/appointments", h.GetAppointmentsHandler)
-	router.HandlerFunc(http.MethodPost, "/appointments/create", h.CreateAppointmentHandler)
-
+	
 	// * User routes
 	router.HandlerFunc(http.MethodPost, "/users", h.CreateUserHandler)
 	router.HandlerFunc(http.MethodGet, "/users/:id", h.GetUserHandler)
 	router.HandlerFunc(http.MethodGet, "/users", h.GetAllUsersHandler)
 	router.HandlerFunc(http.MethodPut, "/users/:id", h.UpdateUserHandler)
 	router.HandlerFunc(http.MethodDelete, "/users/:id", h.DeleteUserHandler)
+	
+	// * Appointment routes
+	router.HandlerFunc(http.MethodGet, "/appointments", h.GetAppointmentsHandler)
+	router.HandlerFunc(http.MethodPost, "/appointments/create", h.CreateAppointmentHandler)
+
+	// * Services routes
+	router.HandlerFunc(http.MethodPost, "/services/", h.CreateServiceHandler)
+	router.HandlerFunc(http.MethodGet, "/services", h.GetAllServicesHandler)
 	return router
 
 }

@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/Lee26Ed/lockit_appointments/cmd/api/utils"
+	"github.com/Lee26Ed/lockit_appointments/cmd/internal/data"
+	"github.com/Lee26Ed/lockit_appointments/cmd/internal/validator"
 )
 
 func (h *Handler) GetAppointmentsHandler(w http.ResponseWriter, r *http.Request) {
@@ -28,5 +30,25 @@ func (h *Handler) CreateAppointmentHandler(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		h.Logger.Error("Failed to write JSON response", "error", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "Failed to create appointment"}, nil)
+	}
+}
+
+func (h *Handler) GetAllAppointmentsHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		data.Filters
+	}
+
+	v := validator.New()
+
+	qs := r.URL.Query()
+
+	input.Filters.Page = utils.GetSingleIntegerParameter(qs, "page", 1, v)
+	input.Filters.PageSize = utils.GetSingleIntegerParameter(qs, "page_size", 20, v)
+	input.Filters.Sort = utils.GetSingleQueryParameter(qs, "sort", "id")
+	input.Filters.SortSafelist = []string{"id", "title", "date", "-id", "-title", "-date"}
+
+	if data.ValidateFilters(v, input.Filters); !v.IsEmpty() {
+				h.failedValidationResponse(w, r, v.Errors)
+		return
 	}
 }
