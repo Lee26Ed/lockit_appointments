@@ -5,4 +5,9 @@ type ServerConfig struct {
 	Environment string
 	DSN string
 	AppVersion string
+	Limiter struct {
+		RPS     float64
+		Burst   int
+		Enabled bool
+	}
 }

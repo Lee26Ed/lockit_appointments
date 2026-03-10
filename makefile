@@ -6,7 +6,10 @@ export
 .PHONY: run
 run:
 	@echo  'Running application…'
-	@go run ./cmd/api -port=3000 -env=development -dsn=${DB_DSN}
+	@go run ./cmd/api -port=3000 -env=development -dsn=${DB_DSN} \
+	-limiter-burst=5
+	-limiter-rps=2
+	-limiter-enabled=true
 
 ## db/psql: connect to the database using psql (terminal)
 .PHONY: db/psql

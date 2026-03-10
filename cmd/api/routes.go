@@ -28,6 +28,9 @@ func (app *applicationDependencies) Routes() http.Handler{
 	// * Services routes
 	router.HandlerFunc(http.MethodPost, "/services/", h.CreateServiceHandler)
 	router.HandlerFunc(http.MethodGet, "/services", h.GetAllServicesHandler)
-	return router
+
+	// wrap router with middleware
+	handler := h.RateLimit(router)
+	return handler
 
 }

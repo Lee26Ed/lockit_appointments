@@ -58,3 +58,8 @@ func (h *Handler) editConflictResponse(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) failedValidationResponse(w http.ResponseWriter, r *http.Request, errors map[string]string) {
 	h.errorResponseJSON(w, r, http.StatusUnprocessableEntity, errors)
 }
+
+func (h *Handler) rateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
+	message := "rate limit exceeded"
+	h.errorResponseJSON(w, r, http.StatusTooManyRequests, message)
+}

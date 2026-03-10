@@ -8,6 +8,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Lee26Ed/lockit_appointments/cmd/api/types"
@@ -22,18 +23,36 @@ type applicationDependencies struct {
     config types.ServerConfig
     logger *slog.Logger
 	models *data.Models
+	wg sync.WaitGroup
+}
+
+func loadConfig() types.ServerConfig {
+	var settings types.ServerConfig
+	flag.IntVar(&settings.Port, "port", 4000, "Server port")
+	flag.StringVar(&settings.Environment, "env", "development",
+				  "Environment(development|staging|production)")
+	flag.StringVar(&settings.DSN, "dsn", "postgres://username:password@localhost/db_name?sslmode=disable", "PostgreSQL DSN")
+
+	// rate limiting settings
+	flag.Float64Var(&settings.Limiter.RPS, "limiter-rps", 2,
+		"Rate Limiter maximum requests per second")
+
+	flag.IntVar(&settings.Limiter.Burst, "limiter-burst", 5,
+		"Rate Limiter maximum burst")
+
+	flag.BoolVar(&settings.Limiter.Enabled, "limiter-enabled", true,
+		"Enable rate limiter")
+
+	flag.Parse()
+	settings.AppVersion = appVersion
+
+	return settings 
+
 }
 
 func main() {
-	var settings types.ServerConfig
 
-	flag.IntVar(&settings.Port, "port", 4000, "Server port")
-    flag.StringVar(&settings.Environment, "env", "development",
-                  "Environment(development|staging|production)")
-	flag.StringVar(&settings.DSN, "dsn", "postgres://username:password@localhost/db_name?sslmode=disable", "PostgreSQL DSN")
-    flag.Parse()
-	settings.AppVersion = appVersion
-
+	settings := loadConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// connect to db 
