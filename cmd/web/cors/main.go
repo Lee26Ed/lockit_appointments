@@ -12,11 +12,17 @@ const html = `
     <meta charset="UTF-8">
 </head>
 <body>
-    <h1>Appletree CORS</h1>
+    <h1>Appletree Preflight CORS</h1>
     <div id="output"></div>
     <script>
          document.addEventListener('DOMContentLoaded', function() {
-         fetch("http://localhost:3000/healthcheck")
+         fetch("http://localhost:3000/users", {
+		 	method: "POST",
+		 	headers: {
+		 		"Content-Type": "application/json"
+		 	},
+			body: JSON.stringify({ email: "testuser@example.com", username: "testuser", password: "password123" })
+		 })
          .then(function (response) {
                          response.text().then(function (text) {
                          document.getElementById("output").innerHTML = text;

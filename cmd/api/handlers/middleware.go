@@ -218,8 +218,7 @@ func (h *Handler) EnableCORS(next http.Handler) http.Handler {
 						
 							// we need to send a 200 OK status. Also since there
 							// is no need to continue the middleware chain we
-							// we leave  - remember it is not a real 'comments' request but
-							// only a preflight CORS request 
+							// we leave 
 							w.WriteHeader(http.StatusOK)
 							return
 						}
