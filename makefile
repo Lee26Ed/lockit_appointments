@@ -7,9 +7,10 @@ export
 run:
 	@echo  'Running application…'
 	@go run ./cmd/api -port=3000 -env=development -dsn=${DB_DSN} \
-	-limiter-burst=5
-	-limiter-rps=2
-	-limiter-enabled=true
+		-limiter-burst=5 \
+		-limiter-rps=2 \
+		-limiter-enabled=true \
+		-cors-trusted-origins="http://localhost:9000"
 
 ## db/psql: connect to the database using psql (terminal)
 .PHONY: db/psql

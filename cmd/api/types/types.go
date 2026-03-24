@@ -10,4 +10,7 @@ type ServerConfig struct {
 		Burst   int
 		Enabled bool
 	}
+	CORS struct {
+		TrustedOrigins []string
+	}
 }

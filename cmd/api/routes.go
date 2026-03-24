@@ -13,6 +13,7 @@ func (app *applicationDependencies) Routes() http.Handler{
 	h := handlers.NewHandler(app.config, app.logger, app.models)
 
 	router.HandlerFunc(http.MethodGet, "/healthcheck", h.HealthcheckHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/metrics", h.MetricsHandler)
 	
 	// * User routes
 	router.HandlerFunc(http.MethodPost, "/users", h.CreateUserHandler)
@@ -30,7 +31,10 @@ func (app *applicationDependencies) Routes() http.Handler{
 	router.HandlerFunc(http.MethodGet, "/services", h.GetAllServicesHandler)
 
 	// wrap router with middleware
-	handler := h.RateLimit(router)
+	handler := h.EnableCORS(router)
+	handler = h.RateLimit(handler)
+	handler = h.LoggingMiddleware(handler)
+	handler = h.GzipMiddleware(handler)
 	return handler
 
 }

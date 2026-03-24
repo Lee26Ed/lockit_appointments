@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"database/sql"
+	"expvar"
 	"flag"
 	"fmt"
 	"log"
 	"log/slog"
 	"os"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +45,13 @@ func loadConfig() types.ServerConfig {
 
 	flag.BoolVar(&settings.Limiter.Enabled, "limiter-enabled", true,
 		"Enable rate limiter")
+
+	// CORS settings
+	flag.Func("cors-trusted-origins", "Trusted CORS origins (space separated)",
+		func(val string) error {
+			settings.CORS.TrustedOrigins = strings.Fields(val)
+			return nil
+		})
 
 	flag.Parse()
 	settings.AppVersion = appVersion
@@ -78,6 +88,13 @@ func main() {
         logger: logger,
         models: data.CreateModels(db),
     }
+
+		// Publish basic expvar metrics
+	expvar.NewString("version").Set(app.config.AppVersion)
+	expvar.NewString("env").Set(app.config.Environment)
+	expvar.Publish("goroutines", expvar.Func(func() any { return runtime.NumGoroutine() }))
+	expvar.Publish("database", expvar.Func(func() any { return db.Stats() }))
+
 	
 	err = app.Serve()
 	if err != nil {

@@ -60,6 +60,7 @@ func (h *Handler) failedValidationResponse(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) rateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Retry-After", "60")
 	message := "rate limit exceeded"
 	h.errorResponseJSON(w, r, http.StatusTooManyRequests, message)
 }
