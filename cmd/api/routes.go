@@ -1,6 +1,7 @@
 package main
 
 import (
+	"expvar"
 	"net/http"
 
 	"github.com/Lee26Ed/lockit_appointments/cmd/api/handlers"
@@ -13,7 +14,9 @@ func (app *applicationDependencies) Routes() http.Handler{
 	h := handlers.NewHandler(app.config, app.logger, app.models)
 
 	router.HandlerFunc(http.MethodGet, "/healthcheck", h.HealthcheckHandler)
-	router.HandlerFunc(http.MethodGet, "/v1/metrics", h.MetricsHandler)
+	// router.HandlerFunc(http.MethodGet, "/v1/metrics", h.MetricsHandler)
+	router.Handler(http.MethodGet, "/v1/metrics", expvar.Handler())
+
 	
 	// * User routes
 	router.HandlerFunc(http.MethodPost, "/users", h.CreateUserHandler)
@@ -31,7 +34,8 @@ func (app *applicationDependencies) Routes() http.Handler{
 	router.HandlerFunc(http.MethodGet, "/services", h.GetAllServicesHandler)
 
 	// wrap router with middleware
-	handler := h.EnableCORS(router)
+	handler := h.Metrics(router)
+	handler = h.EnableCORS(handler)
 	handler = h.RateLimit(handler)
 	handler = h.LoggingMiddleware(handler)
 	handler = h.GzipMiddleware(handler)
