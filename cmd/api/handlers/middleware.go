@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"compress/gzip"
-	"encoding/json"
 	"expvar"
 	"net"
 	"net/http"
@@ -234,22 +233,3 @@ func (h *Handler) EnableCORS(next http.Handler) http.Handler {
 
 }
 
-
-
-
-
-// parseExpvarValue converts expvar.Var to a plain Go value for JSON encoding
-func parseExpvarValue(v expvar.Var) any {
-	// expvar values implement String() with JSON; attempt to decode that
-	type jsonMarshaler interface{ String() string }
-	if jm, ok := v.(jsonMarshaler); ok {
-		s := jm.String()
-		// Best-effort JSON decode
-		var out any
-		if err := json.Unmarshal([]byte(s), &out); err == nil {
-			return out
-		}
-		return s
-	}
-	return v
-}
