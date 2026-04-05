@@ -19,7 +19,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-const appVersion = "1.0.0"
+const appVersion = "1.1.0"
 
 
 type applicationDependencies struct {
@@ -89,7 +89,7 @@ func main() {
         models: data.CreateModels(db),
     }
 
-		// Publish basic expvar metrics
+	// Publish basic expvar metrics
 	expvar.NewString("version").Set(app.config.AppVersion)
 	expvar.NewString("env").Set(app.config.Environment)
 	expvar.Publish("goroutines", expvar.Func(func() any { return runtime.NumGoroutine() }))

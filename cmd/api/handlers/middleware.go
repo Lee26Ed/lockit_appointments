@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"compress/gzip"
+	"encoding/json"
 	"expvar"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Lee26Ed/lockit_appointments/cmd/api/utils"
 	"golang.org/x/time/rate"
 )
 
@@ -66,18 +68,22 @@ func (h *Handler) RateLimit(next http.Handler) http.Handler {
 	})
 }
 
+//* ----------------------------------------- Metrics Middlewares ----------------------------------------- *// 
+// expvar counters and maps
+var (
+	totalRequestsReceived           = expvar.NewInt("total_requests_received")
+	totalResponsesSent              = expvar.NewInt("total_responses_sent")
+	totalProcessingTimeMicroseconds = expvar.NewInt("total_processing_time_microseconds")
+	totalInFlightRequests           = expvar.NewInt("total_in_flight_requests")
+	responsesByStatus               = expvar.NewMap("responses_by_status")
+	responsesByMethod               = expvar.NewMap("responses_by_method")
+)
+
 // metricsResponseWriter wraps http.ResponseWriter to capture status code and bytes written
 type metricsResponseWriter struct {
     http.ResponseWriter   // the original http.ResponseWriter
     statusCode int         // this will contain the status code we need
     headerWritten bool    // has the response headers already been written?
-}
-
-func newMetricsResponseWriter(w http.ResponseWriter) *metricsResponseWriter {
-    return &metricsResponseWriter {
-        ResponseWriter: w,
-        statusCode: http.StatusOK,
-    }
 }
 
 func (mw *metricsResponseWriter) Header() http.Header {
@@ -106,32 +112,61 @@ func (mw *metricsResponseWriter) Unwrap() http.ResponseWriter {
 }
 
 // metricsEndpointHandler returns curated metrics without exposing default memstats
-func (h *Handler) Metrics (next http.Handler) http.Handler {
-
-   // Setup our variable to track the metrics
-	var (
-		totalRequestsReceived = expvar.NewInt("total_requests_received")
-		totalResponsesSent    = expvar.NewInt("total_responses_sent")
-		totalProcessingTimeMicroseconds = expvar.NewInt("total_processing_time_μs")
-		totalResponsesSentByStatus = expvar.NewMap("total_responses_sent_by_status")
-	)
-	
+func (h *Handler) Metrics (next http.Handler) http.Handler {	
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// start is when we receive the request and start processing it
-        start := time.Now()
-        // update our request received counter
-        totalRequestsReceived.Add(1)
-		mw := newMetricsResponseWriter(w)
-		// we send our custom responseWriter down the middleware chain
-		next.ServeHTTP(mw, r)
-        // remember the middleware chain goes in both directions, so we can
-        // do things when we return back to our middleware.We will increment
-        // the responses sent counter
-        totalResponsesSent.Add(1)
-	totalResponsesSentByStatus.Add(strconv.Itoa(mw.statusCode), 1)
-		duration := time.Since(start).Microseconds()
-        totalProcessingTimeMicroseconds.Add(duration)
-    })
+		start := time.Now()
+		totalRequestsReceived.Add(1)
+		totalInFlightRequests.Add(1)
+
+		// Wrap ResponseWriter to capture status code
+		mrw := &metricsResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+		// Process request
+		next.ServeHTTP(mrw, r)
+
+		// After response
+		duration := time.Since(start)
+		totalResponsesSent.Add(1)
+		totalInFlightRequests.Add(-1)
+
+		responsesByMethod.Add(r.Method, 1)
+		responsesByStatus.Add(strconv.Itoa(mrw.statusCode), 1)
+		totalProcessingTimeMicroseconds.Add(duration.Microseconds())
+	})
+}
+
+func (h *Handler) MetricsHandler(w http.ResponseWriter, r *http.Request) {
+	// Build a filtered snapshot
+	snapshot := map[string]any{}
+	// Pull selected expvar metrics if present
+	expvar.Do(func(kv expvar.KeyValue) {
+		switch kv.Key {
+		case "version", "env", "goroutines", "database",
+			"total_requests_received", "total_responses_sent",
+			"total_in_flight_requests", "total_processing_time_microseconds",
+			"responses_by_status", "responses_by_method":
+			snapshot[kv.Key] = parseExpvarValue(kv.Value)
+		}
+	})
+
+	// Write JSON using existing helper
+	_ = utils.WriteJSON(w, http.StatusOK, utils.Envelope{"metrics": snapshot}, nil)
+}
+
+// parseExpvarValue converts expvar.Var to a plain Go value for JSON encoding
+func parseExpvarValue(v expvar.Var) any {
+	// expvar values implement String() with JSON; attempt to decode that
+	type jsonMarshaler interface{ String() string }
+	if jm, ok := v.(jsonMarshaler); ok {
+		s := jm.String()
+		// Best-effort JSON decode
+		var out any
+		if err := json.Unmarshal([]byte(s), &out); err == nil {
+			return out
+		}
+		return s
+	}
+	return v
 }
 
 

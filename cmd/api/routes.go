@@ -1,7 +1,6 @@
 package main
 
 import (
-	"expvar"
 	"net/http"
 
 	"github.com/Lee26Ed/lockit_appointments/cmd/api/handlers"
@@ -9,13 +8,15 @@ import (
 )
 
 func (app *applicationDependencies) Routes() http.Handler{
-	router := httprouter.New()
 
+	const apiv = "/api/v1"
+
+	router := httprouter.New()
 	h := handlers.NewHandler(app.config, app.logger, app.models)
 
-	router.HandlerFunc(http.MethodGet, "/healthcheck", h.HealthcheckHandler)
-	// router.HandlerFunc(http.MethodGet, "/v1/metrics", h.MetricsHandler)
-	router.Handler(http.MethodGet, "/v1/metrics", expvar.Handler())
+	// * General routes
+	router.HandlerFunc(http.MethodGet, apiv+"/healthcheck", h.HealthcheckHandler)
+	router.HandlerFunc(http.MethodGet, apiv+"/metrics", h.MetricsHandler)
 
 	
 	// * User routes
