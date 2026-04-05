@@ -20,11 +20,14 @@ func (app *applicationDependencies) Routes() http.Handler{
 
 	
 	// * User routes
-	router.HandlerFunc(http.MethodPost, "/users", h.CreateUserHandler)
-	router.HandlerFunc(http.MethodGet, "/users/:id", h.GetUserHandler)
-	router.HandlerFunc(http.MethodGet, "/users", h.GetAllUsersHandler)
-	router.HandlerFunc(http.MethodPut, "/users/:id", h.UpdateUserHandler)
-	router.HandlerFunc(http.MethodDelete, "/users/:id", h.DeleteUserHandler)
+	router.HandlerFunc(http.MethodPost, apiv+"/users", h.CreateUserHandler)
+	router.HandlerFunc(http.MethodGet, apiv+"/users", h.GetAllUsersHandler)
+	router.HandlerFunc(http.MethodGet, apiv+"/users/:id", h.GetUserHandler)
+	router.HandlerFunc(http.MethodPut, apiv+"/users/:id", h.UpdateUserHandler)
+	router.HandlerFunc(http.MethodDelete, apiv+"/users/:id", h.DeleteUserHandler)
+
+	// * Businesses routes
+	router.HandlerFunc(http.MethodPost, apiv+"/businesses", h.CreateBusinessHandler)
 	
 	// * Appointment routes
 	router.HandlerFunc(http.MethodGet, "/appointments", h.GetAppointmentsHandler)

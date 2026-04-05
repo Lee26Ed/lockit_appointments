@@ -12,19 +12,29 @@ import (
 )
 
 type User struct {
-	ID int				`json:"id"`
-	Email string		`json:"email"`
-	Username string		`json:"username"`
-	Password password	`json:"-"`
-	RoleID int			`json:"role_id"`
-	CreatedAt time.Time	`json:"created_at"`
-	UpdatedAt time.Time	`json:"updated_at,omitempty"`
+	ID           int        `json:"id"`
+	Email        string     `json:"email"`
+	Username     string     `json:"username"`
+	Password     password     `json:"-"`
+	Status       Status     `json:"status,omitempty"`
+	IsActivated  bool       `json:"is_activated"`
+	LastLogin    *time.Time `json:"last_login,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    *time.Time `json:"updated_at,omitempty"`
 }
 
 type password struct {
 	plaintext *string
 	hash []byte
 }
+
+type Status string
+
+const (
+	UserStatusActive    Status = "active"
+	UserStatusPending   Status = "pending"
+	UserStatusSuspended Status = "suspended"
+)
 
 type UserModel struct {
 	DB *sql.DB
@@ -86,12 +96,13 @@ func ValidatePasswordPlaintext(v *validator.Validator, password string) {
 }
 
 var ErrDuplicateEmail = errors.New("duplicate email")
+var ErrDuplicateUsername = errors.New("duplicate username")
 
 // Insert a new user into the database and return the ID of the newly created user
 func (u *UserModel) Insert(user *User) (*User, error) {
 	query := `
 		INSERT INTO users (
-			email, username, password_hash, role_id, created_at, updated_at
+			email, username, password_hash, status, is_activated, last_login
 		) VALUES (
 			$1, $2, $3, $4, $5, $6
 		)
@@ -102,19 +113,23 @@ func (u *UserModel) Insert(user *User) (*User, error) {
 		user.Email,
 		user.Username,
 		user.Password.hash,
-		2,
-		time.Now(),
+		user.Status,
+		user.IsActivated,
 		time.Now(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-		err := u.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt)
+	err := u.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt)
 	if err != nil {
 		// detect duplicate email error
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "users_email_key") {
 			return nil, ErrDuplicateEmail
+		}
+		// detect duplicate username error
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "users_username_key") {
+			return nil, ErrDuplicateUsername
 		}
 		return nil, err
 	}
@@ -130,7 +145,7 @@ func (u *UserModel) Get(id int) (*User, error) {
 	}
 
 	query := `
-		SELECT id, username, email, password_hash, role_id, created_at
+		SELECT id, username, email, password_hash, status, is_activated, last_login, created_at, updated_at
 		FROM users
 		WHERE id = $1`
 
@@ -144,11 +159,13 @@ func (u *UserModel) Get(id int) (*User, error) {
 		&user.Username,
 		&user.Email,
 		&user.Password.hash,
-		&user.RoleID,
+		&user.Status,
+		&user.IsActivated,
+		&user.LastLogin,
 		&user.CreatedAt,
+		&user.UpdatedAt,
 	)
 
-	user.UpdatedAt = time.Now()
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -163,7 +180,7 @@ func (u *UserModel) Get(id int) (*User, error) {
 
 func (u *UserModel) GetAll() ([]*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, role_id, created_at
+		SELECT id, username, email, password_hash, status, is_activated, last_login, created_at, updated_at
 		FROM users
 		ORDER BY created_at DESC`
 
@@ -185,8 +202,11 @@ func (u *UserModel) GetAll() ([]*User, error) {
 			&user.Username,
 			&user.Email,
 			&user.Password.hash,
-			&user.RoleID,
+			&user.Status,
+			&user.IsActivated,
+			&user.LastLogin,
 			&user.CreatedAt,
+			&user.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -207,17 +227,15 @@ var ErrEditConflict = errors.New("edit conflict")
 func (m *UserModel) Update(user *User) (*User, error) {
 	query := `
 		UPDATE users
-		SET username = $1, email = $2, password_hash = $3, role_id = $4,
-			updated_at = NOW()
-		WHERE id = $5
-		RETURNING username, email, role_id, updated_at
+		SET username = $1, email = $2, password_hash = $3
+		WHERE id = $4
+		RETURNING id, username, email, updated_at
 	`
 
 	args := []interface{}{
 		user.Username,
 		user.Email,
 		user.Password.hash,
-		user.RoleID,
 		user.ID,
 	}
 
@@ -225,14 +243,17 @@ func (m *UserModel) Update(user *User) (*User, error) {
 	defer cancel()
 
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+		&user.ID,
 		&user.Username,
 		&user.Email,
-		&user.RoleID,
 		&user.UpdatedAt,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "users_email_key") {
 			return nil, ErrDuplicateEmail
+		}
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") && strings.Contains(err.Error(), "users_username_key") {
+			return nil, ErrDuplicateUsername
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrEditConflict

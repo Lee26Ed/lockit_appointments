@@ -22,10 +22,12 @@ func (h *Handler) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// copy the data from the clientData struct to a new User struct
+	// copy the data from the clientData struct to a new db User struct
 	user := &data.User{
 		Email:    clientData.Email,
 		Username: clientData.Username,
+		Status: data.UserStatusPending, // default status for new users
+		IsActivated: false, // new users are not activated by default
 	}
 
 	// hash the password and store it in the User struct
@@ -48,6 +50,9 @@ func (h *Handler) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, data.ErrDuplicateEmail):
 			v.AddError("email", "email address already in use")
+			h.failedValidationResponse(w, r, v.Errors)
+		case errors.Is(err, data.ErrDuplicateUsername):
+			v.AddError("username", "username already in use")
 			h.failedValidationResponse(w, r, v.Errors)
 		default:
 			h.serverErrorResponse(w, r, err)
@@ -131,10 +136,10 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the request body for updates
 	var clientData struct {
 		Username    *string `json:"username"`
-		Password    *string `json:"password"`
+		Password    *string `json:"password,omitempty"`
 		Email       *string `json:"email"`
-		RoleID      *int    `json:"role_id"`
 	}
+
 
 	err = utils.ReadJSON(w, r, &clientData)
 	if err != nil {
@@ -148,9 +153,6 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if clientData.Email != nil {
 		user.Email = *clientData.Email
-	}
-	if clientData.RoleID != nil {
-		user.RoleID = *clientData.RoleID
 	}
 
 	// Update password if provided
