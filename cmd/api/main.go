@@ -16,16 +16,23 @@ import (
 
 	"github.com/Lee26Ed/lockit_appointments/cmd/api/types"
 	"github.com/Lee26Ed/lockit_appointments/cmd/internal/data"
+	"github.com/Lee26Ed/lockit_appointments/cmd/internal/mailer"
 	_ "github.com/lib/pq"
 )
 
 const appVersion = "1.1.0"
 
+var smtpHost = os.Getenv("SMTP_HOST")
+var smtpPort = 587 // default SMTP port
+var smtpUsername = os.Getenv("SMTP_USERNAME")
+var smtpPassword = os.Getenv("SMTP_PASSWORD")
+var smtpSender = os.Getenv("SMTP_SENDER")
 
 type applicationDependencies struct {
     config types.ServerConfig
     logger *slog.Logger
 	models *data.Models
+	mailer mailer.Mailer
 	wg sync.WaitGroup
 }
 
@@ -52,6 +59,13 @@ func loadConfig() types.ServerConfig {
 			settings.CORS.TrustedOrigins = strings.Fields(val)
 			return nil
 		})
+
+	// SMTP settings
+	flag.StringVar(&settings.SMTP.Host, "smtp-host", smtpHost, "SMTP host")
+	flag.IntVar(&settings.SMTP.Port, "smtp-port", smtpPort, "SMTP port")
+	flag.StringVar(&settings.SMTP.Username, "smtp-username", smtpUsername, "SMTP username")
+	flag.StringVar(&settings.SMTP.Password, "smtp-password", smtpPassword, "SMTP password")
+	flag.StringVar(&settings.SMTP.Sender, "smtp-sender", smtpSender, "SMTP sender email")
 
 	flag.Parse()
 	settings.AppVersion = appVersion
@@ -87,6 +101,8 @@ func main() {
         config: settings,
         logger: logger,
         models: data.CreateModels(db),
+		wg: sync.WaitGroup{},
+		mailer: mailer.New(settings.SMTP.Host, settings.SMTP.Port, settings.SMTP.Username, settings.SMTP.Password, settings.SMTP.Sender),
     }
 
 	// Publish basic expvar metrics

@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var AnonymousUser = &User{}
 type User struct {
 	ID           int        `json:"id"`
 	Email        string     `json:"email"`
@@ -18,6 +20,8 @@ type User struct {
 	Password     password     `json:"-"`
 	Status       Status     `json:"status,omitempty"`
 	IsActivated  bool       `json:"is_activated"`
+	RoleID       int        `json:"role_id"`
+	RoleName     string     `json:"role_name,omitempty"`
 	LastLogin    *time.Time `json:"last_login,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    *time.Time `json:"updated_at,omitempty"`
@@ -102,9 +106,9 @@ var ErrDuplicateUsername = errors.New("duplicate username")
 func (u *UserModel) Insert(user *User) (*User, error) {
 	query := `
 		INSERT INTO users (
-			email, username, password_hash, status, is_activated, last_login
+			email, username, password_hash, status, is_activated, last_login, role_id
 		) VALUES (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7
 		)
 		RETURNING id, created_at
 	`
@@ -116,6 +120,7 @@ func (u *UserModel) Insert(user *User) (*User, error) {
 		user.Status,
 		user.IsActivated,
 		time.Now(),
+		user.RoleID,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -145,7 +150,7 @@ func (u *UserModel) Get(id int) (*User, error) {
 	}
 
 	query := `
-		SELECT id, username, email, password_hash, status, is_activated, last_login, created_at, updated_at
+		SELECT id, username, email, password_hash, status, is_activated, last_login, created_at, updated_at, role_id
 		FROM users
 		WHERE id = $1`
 
@@ -164,6 +169,7 @@ func (u *UserModel) Get(id int) (*User, error) {
 		&user.LastLogin,
 		&user.CreatedAt,
 		&user.UpdatedAt,
+		&user.RoleID,
 	)
 
 	if err != nil {
@@ -180,7 +186,7 @@ func (u *UserModel) Get(id int) (*User, error) {
 
 func (u *UserModel) GetAll() ([]*User, error) {
 	query := `
-		SELECT id, username, email, password_hash, status, is_activated, last_login, created_at, updated_at
+		SELECT id, username, email, password_hash, status, is_activated, last_login, created_at, updated_at, role_id
 		FROM users
 		ORDER BY created_at DESC`
 
@@ -207,6 +213,8 @@ func (u *UserModel) GetAll() ([]*User, error) {
 			&user.LastLogin,
 			&user.CreatedAt,
 			&user.UpdatedAt,
+			&user.RoleID,
+
 		)
 		if err != nil {
 			return nil, err
@@ -221,14 +229,94 @@ func (u *UserModel) GetAll() ([]*User, error) {
 	return users, nil
 }
 
+// Get a user from the database based on their email provided
+func (u *UserModel) GetByEmail(email string) (*User, error) {
+	query := `
+		SELECT id, username, email, password_hash, role_id, status, is_activated, last_login, created_at, updated_at
+		FROM users
+		WHERE email = $1
+	`
+
+	var user User
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := u.DB.QueryRowContext(ctx, query, email).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password.hash,
+		&user.RoleID,
+		&user.Status,
+		&user.IsActivated,
+		&user.LastLogin,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+	return &user, nil
+}
+
+func (u *UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error) {
+	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
+
+	query := `
+        SELECT users.id, users.created_at, users.username,
+               users.email, users.password_hash, users.status, 
+               users.role_id, roles.role
+        FROM users
+        INNER JOIN auth_tokens as tokens
+        ON users.id = tokens.user_id
+        INNER JOIN roles
+        ON users.role_id = roles.id
+        WHERE tokens.token = $1
+        AND tokens.scope = $2 
+        AND tokens.expires_at > $3
+       `
+	args := []any{tokenHash[:], tokenScope, time.Now()}
+	var user User
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := u.DB.QueryRowContext(ctx, query, args...).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.Username,
+		&user.Email,
+		&user.Password.hash,
+		&user.Status,
+		&user.RoleID,
+		&user.RoleName,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	// Return the matching user.
+	return &user, nil
+}
+
 var ErrEditConflict = errors.New("edit conflict")
 
 // updates a user record in the database
 func (m *UserModel) Update(user *User) (*User, error) {
 	query := `
 		UPDATE users
-		SET username = $1, email = $2, password_hash = $3
-		WHERE id = $4
+		SET username = $1, email = $2, password_hash = $3, role_id = $4
+		WHERE id = $5
 		RETURNING id, username, email, updated_at
 	`
 
@@ -236,6 +324,7 @@ func (m *UserModel) Update(user *User) (*User, error) {
 		user.Username,
 		user.Email,
 		user.Password.hash,
+		user.RoleID,
 		user.ID,
 	}
 
@@ -262,6 +351,33 @@ func (m *UserModel) Update(user *User) (*User, error) {
 	}
 
 	return user, nil
+}
+
+// UpdateActivation updates only the is_active field for a user
+// This is used when activating a user account via email token
+func (m *UserModel) UpdateActivation(userID int, status Status, isActivated bool) error {
+	query := `
+		UPDATE users
+		SET status = $1, is_activated = $2
+		WHERE id = $3
+		RETURNING updated_at
+	`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var updatedAt time.Time
+	err := m.DB.QueryRowContext(ctx, query, status, isActivated, userID).Scan(&updatedAt)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrRecordNotFound
+		default:
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Delete removes a user record from the database
@@ -292,4 +408,20 @@ func (u *UserModel) Delete(id int) error {
 	}
 
 	return nil
+}
+
+// CountUsers returns the total number of users in the database
+func (u *UserModel) CountUsers() (int, error) {
+	query := `SELECT COUNT(*) FROM users`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var count int
+	err := u.DB.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }

@@ -7,6 +7,7 @@ export
 run:
 	@echo  'Running application…'
 	@go run ./cmd/api -port=3000 -env=development -dsn=${DB_DSN} \
+		--smtp-host=${SMTP_HOST} --smtp-port=${SMTP_PORT} --smtp-username=${SMTP_USERNAME} --smtp-password=${SMTP_PASSWORD} --smtp-sender=${SMTP_SENDER} \
 		-limiter-burst=5 \
 		-limiter-rps=2 \
 		-limiter-enabled=true \
@@ -17,6 +18,7 @@ run:
 run/no-limiter:
 	@echo  'Running application (rate limiter disabled)…'
 	@go run ./cmd/api -port=3000 -env=development -dsn=${DB_DSN} \
+		--smtp-host=${SMTP_HOST} --smtp-port=${SMTP_PORT} --smtp-username=${SMTP_USERNAME} --smtp-password=${SMTP_PASSWORD} --smtp-sender=${SMTP_SENDER} \
 		-limiter-burst=5 \
 		-limiter-rps=2 \
 		-limiter-enabled=false \

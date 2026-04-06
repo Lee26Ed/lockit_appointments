@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/Lee26Ed/lockit_appointments/cmd/api/utils"
 	"github.com/Lee26Ed/lockit_appointments/cmd/internal/data"
@@ -22,12 +23,26 @@ func (h *Handler) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if this is the first user registering
+	userCount, err := h.models.Users.CountUsers()
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Set role_id to 1 for the first user (admin), otherwise 3 (regular user)
+	roleID := 3
+	if userCount == 0 {
+		roleID = 1
+	}
+
 	// copy the data from the clientData struct to a new db User struct
 	user := &data.User{
 		Email:    clientData.Email,
 		Username: clientData.Username,
 		Status: data.UserStatusPending, // default status for new users
 		IsActivated: false, // new users are not activated by default
+		RoleID: roleID, // set role based on user count
 	}
 
 	// hash the password and store it in the User struct
@@ -60,12 +75,105 @@ func (h *Handler) CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate a new activation token which expires in 3 days
+	token, err := h.models.Tokens.New(user.ID, 3*24*time.Hour, data.ScopeActivation)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
 	response := utils.Envelope{"user": user}
+
+	h.background(func() {
+		data := map[string]any{
+			"activationToken": token.Plaintext,
+			"userID":          user.ID,
+			"username":        user.Username,
+		}
+
+		err = h.mailer.Send(user.Email, "user_welcome.tmpl", data)
+		if err != nil {
+			h.Logger.Error(err.Error())
+		}
+	})
+
 	err = utils.WriteJSON(w, http.StatusCreated, response, nil)
 	if err != nil {
 		h.serverErrorResponse(w, r, err)
 	}
 }
+
+
+func (h *Handler) ActivateUserHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the body from the request and store in temporary struct
+	var incomingData struct {
+		TokenPlaintext string `json:"token"`
+	}
+	err := utils.ReadJSON(w, r, &incomingData)
+	if err != nil {
+		h.badRequestResponse(w, r, err)
+		return
+	}
+
+	// Validate the data
+	v := validator.New()
+	data.ValidateTokenPlaintext(v, incomingData.TokenPlaintext)
+	if !v.IsEmpty() {
+		h.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+	// Let's check if the token provided belongs to the user
+	user, err := h.models.Users.GetForToken(data.ScopeActivation,
+		incomingData.TokenPlaintext)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			v.AddError("token", "invalid or expired activation token")
+			h.failedValidationResponse(w, r, v.Errors)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// User provided the right token so activate them
+	h.Logger.Info("Activating user", "user_id", user.ID, "username", user.Username, "email", user.Email)
+	err = h.models.Users.UpdateActivation(user.ID, data.UserStatusActive, true)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			v.AddError("token", "user not found")
+			h.failedValidationResponse(w, r, v.Errors)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Update the user object for the response
+	user.Status = data.UserStatusActive
+	user.IsActivated = true
+
+	// User has been activated so delete the activation token to
+	// prevent reuse.
+	err = h.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.ID)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Send a response
+	data := utils.Envelope{
+		"user": user,
+	}
+
+	err = utils.WriteJSON(w, http.StatusOK, data, nil)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+	}
+}
+
 
 func (h *Handler) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Get the ID from the URL
@@ -138,6 +246,7 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		Username    *string `json:"username"`
 		Password    *string `json:"password,omitempty"`
 		Email       *string `json:"email"`
+		RoleID      *int    `json:"role_id"`
 	}
 
 
@@ -153,6 +262,9 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if clientData.Email != nil {
 		user.Email = *clientData.Email
+	}
+	if clientData.RoleID != nil {
+		user.RoleID = *clientData.RoleID
 	}
 
 	// Update password if provided

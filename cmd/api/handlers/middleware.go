@@ -3,7 +3,9 @@ package handlers
 import (
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"expvar"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -12,9 +14,23 @@ import (
 	"time"
 
 	"github.com/Lee26Ed/lockit_appointments/cmd/api/utils"
+	"github.com/Lee26Ed/lockit_appointments/cmd/internal/data"
+	"github.com/Lee26Ed/lockit_appointments/cmd/internal/validator"
 	"golang.org/x/time/rate"
 )
 
+
+func (h *Handler) RecoverPanic(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				w.Header().Set("Connection", "close")
+				h.serverErrorResponse(w, r, fmt.Errorf("%v", err))
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
 
 func (h *Handler) RateLimit(next http.Handler) http.Handler {
 	type client struct {
@@ -67,6 +83,57 @@ func (h *Handler) RateLimit(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+func (h *Handler) Authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Authorization")
+
+		// Get the Authorization header from the request. It should have the
+		// Bearer token
+		authorizationHeader := r.Header.Get("Authorization")
+
+		// If there is no Authorization header then we have an Anonymous user
+		if authorizationHeader == "" {
+			r = h.contextSetUser(r, data.AnonymousUser)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		headerParts := strings.Split(authorizationHeader, " ")
+		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+			h.invalidAuthenticationTokenResponse(w, r)
+			return
+		}
+
+		// Get the actual token
+		token := headerParts[1]
+		// Validate
+		v := validator.New()
+		data.ValidateTokenPlaintext(v, token)
+		if !v.IsEmpty() {
+			h.invalidAuthenticationTokenResponse(w, r)
+			return
+		}
+
+		// Get the user info associated with this authentication token
+		user, err := h.models.Users.GetForToken(data.ScopeAuthentication, token)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				h.invalidAuthenticationTokenResponse(w, r)
+			default:
+				h.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+		// Add the retrieved user info to the context
+		r = h.contextSetUser(r, user)
+
+		// Call the next handler in the chain.
+		next.ServeHTTP(w, r)
+	})
+}
+
 
 //* ----------------------------------------- Metrics Middlewares ----------------------------------------- *// 
 // expvar counters and maps

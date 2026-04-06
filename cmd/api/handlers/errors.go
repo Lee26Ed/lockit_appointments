@@ -64,3 +64,26 @@ func (h *Handler) rateLimitExceededResponse(w http.ResponseWriter, r *http.Reque
 	message := "rate limit exceeded"
 	h.errorResponseJSON(w, r, http.StatusTooManyRequests, message)
 }
+
+// Return a 401 status code
+func (h *Handler) invalidCredentialsResponse(w http.ResponseWriter, r *http.Request) {
+    message := "invalid authentication credentials"
+    h.errorResponseJSON(w, r, http.StatusUnauthorized, message)
+}
+
+func (h *Handler) invalidAuthenticationTokenResponse(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("WWW-Authenticate", "Bearer")
+
+	message := "invalid or missing authentication token"
+	h.errorResponseJSON(w, r, http.StatusUnauthorized, message)
+}
+
+func (h *Handler) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request) {
+    message := "you must be authenticated to access this resource"
+    h.errorResponseJSON(w, r, http.StatusUnauthorized, message)
+}
+
+func (h *Handler) inactiveAccountResponse(w http.ResponseWriter, r *http.Request) {
+    message := "your user account must be activated to access this resource"
+    h.errorResponseJSON(w, r, http.StatusForbidden, message)
+}

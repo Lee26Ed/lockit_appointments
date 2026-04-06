@@ -13,4 +13,11 @@ type ServerConfig struct {
 	CORS struct {
 		TrustedOrigins []string
 	}
+	SMTP struct {
+		Host     string
+		Port     int
+		Username string
+		Password string
+		Sender   string
+	}
 }
