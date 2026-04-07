@@ -73,6 +73,17 @@ func (h *Handler) CreateBusinessHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// update the user's role to business owner if they aren't already
+	if currentUser.RoleID == 3 {
+		currentUser.RoleID = 2 // set role to business owner
+		_, err = h.models.Users.Update(currentUser)
+		if err != nil {
+			h.Logger.Error("failed to update user role", "error", err)
+			h.serverErrorResponse(w, r, err)
+			return
+		}
+	}
+
 	response := utils.Envelope{"business": Business}
 	err = utils.WriteJSON(w, http.StatusCreated, response, nil)
 	if err != nil {
@@ -133,6 +144,112 @@ func (h *Handler) GetBusinessHandler(w http.ResponseWriter, r *http.Request) {
 
 	response := utils.Envelope{
 		"business": business,
+	}
+	err = utils.WriteJSON(w, http.StatusOK, response, nil)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+	}
+}
+
+func (h *Handler) UpdateBusinessHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the ID from the URL
+	id, err := utils.ReadIDParam(r)
+	if err != nil {
+		h.notFoundResponse(w, r)
+		return
+	}
+	
+	// Try to get the business from the database
+	business, err := h.models.Businesses.Get(int(id))
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.notFoundResponse(w, r)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// parse the updated business data from the request body
+	var clientData struct {
+		Name 	  *string `json:"name"`
+		Bio 	  *string `json:"bio"`
+		Email 	  *string `json:"email"`
+		Phone 	  *string `json:"phone"`
+	}
+
+	err = utils.ReadJSON(w, r, &clientData)
+	if err != nil {
+		h.badRequestResponse(w, r, err)
+		return
+	}
+	
+	// update the business fields if they were provided in the request body
+	if clientData.Name != nil {
+		business.Name = *clientData.Name
+	}
+	if clientData.Bio != nil {
+		business.Bio = *clientData.Bio
+	}
+	if clientData.Email != nil {
+		business.Email = *clientData.Email
+	}
+	if clientData.Phone != nil {
+		business.Phone = *clientData.Phone
+	}
+
+	// validate the updated business data
+	v := validator.New()
+	if data.ValidateBusiness(v, business); !v.IsEmpty() {
+		h.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	// update the business in the database
+	err = h.models.Businesses.Update(business)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrDuplicateEmail):
+			v.AddError("email", "email address already in use")
+			h.failedValidationResponse(w, r, v.Errors)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	response := utils.Envelope{
+		"business": business,
+	}
+	err = utils.WriteJSON(w, http.StatusOK, response, nil)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+	}
+}
+
+func (h *Handler) DeleteBusinessHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the ID from the URL
+	id, err := utils.ReadIDParam(r)
+	if err != nil {
+		h.notFoundResponse(w, r)
+		return
+	}
+	
+	// Try to delete the business from the database
+	err = h.models.Businesses.Delete(int(id))
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.notFoundResponse(w, r)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	response := utils.Envelope{
+		"message": "business successfully deleted",
 	}
 	err = utils.WriteJSON(w, http.StatusOK, response, nil)
 	if err != nil {

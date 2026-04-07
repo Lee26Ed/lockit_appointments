@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -10,16 +11,33 @@ import (
 )
 
 func (h *Handler) CreateServiceHandler(w http.ResponseWriter, r *http.Request) {
+
+	// Get the current user from context
+	currentUser := h.contextGetUser(r)
+
+	// Check if the current user has a business
+	business, err := h.models.Businesses.GetByOwnerID(currentUser.ID)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.notFoundResponse(w, r)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	h.Logger.Info("creating service for business", "business", business)
+
 	var input struct {
 		Name  string `json:"name"`
 		Price int    `json:"price"`
 		Description string `json:"description,omitempty"`
 		DurationMinutes int `json:"duration,omitempty"`
-		Active bool `json:"active,omitempty"`
-		BusinessID int `json:"business_id,omitempty"`
+		DownTimeMinutes int `json:"downtime,omitempty"`
 	}
 
-	err := utils.ReadJSON(w, r, &input)
+	err = utils.ReadJSON(w, r, &input)
 	if err != nil {
 		h.badRequestResponse(w, r, err)
 		return
@@ -30,8 +48,9 @@ func (h *Handler) CreateServiceHandler(w http.ResponseWriter, r *http.Request) {
 		Price: float64(input.Price),
 		Description: input.Description,
 		Duration: input.DurationMinutes,
-		Active: input.Active,
-		BusinessID: input.BusinessID,
+		DownTime: input.DownTimeMinutes,
+		Active: true, // default to active when creating a new service
+		BusinessID: business.ID,
 	}
 
 	v := validator.New()
@@ -40,7 +59,7 @@ func (h *Handler) CreateServiceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.models.Services.Insert(service)
+	service, err = h.models.Services.Insert(service)
 	if err != nil {
 		h.serverErrorResponse(w, r, err)
 		return
@@ -81,6 +100,138 @@ func (h *Handler) GetAllServicesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	err = utils.WriteJSON(w, http.StatusOK,utils.Envelope{"services": services, "metadata": metadata}, nil)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+	}
+}
+
+func (h *Handler) GetServiceHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the ID from the URL
+	id, err := utils.ReadIDParam(r)
+	if err != nil {
+		h.notFoundResponse(w, r)
+		return
+	}
+	
+	// Try to get the service from the database
+	service, err := h.models.Services.Get(int(id))
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.notFoundResponse(w, r)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	response := utils.Envelope{
+		"service": service,
+	}
+
+	err = utils.WriteJSON(w, http.StatusOK, response, nil)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+	}
+}
+
+func (h *Handler) UpdateServiceHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the ID from the URL
+	id, err := utils.ReadIDParam(r)
+	if err != nil {
+		h.notFoundResponse(w, r)
+		return
+	}
+	
+	// Try to get the service from the database
+	service, err := h.models.Services.Get(int(id))
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.notFoundResponse(w, r)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	var input struct {
+		Name  *string `json:"name,omitempty"`
+		Price *int    `json:"price,omitempty"`
+		Description *string `json:"description,omitempty"`
+		DurationMinutes *int `json:"duration,omitempty"`
+		DownTimeMinutes *int `json:"downtime,omitempty"`
+	}
+
+	err = utils.ReadJSON(w, r, &input)
+	if err != nil {
+		h.badRequestResponse(w, r, err)
+		return
+	}
+
+	if input.Name != nil {
+		service.Name = *input.Name
+	}
+	if input.Price != nil {
+		service.Price = float64(*input.Price)
+	}
+	if input.Description != nil {
+		service.Description = *input.Description
+	}
+	if input.DurationMinutes != nil {
+		service.Duration = *input.DurationMinutes
+	}
+	if input.DownTimeMinutes != nil {
+		service.DownTime = *input.DownTimeMinutes
+	}
+
+	v := validator.New()
+	if data.ValidateService(v, service); !v.IsEmpty() {
+		h.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = h.models.Services.Update(service)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	response := utils.Envelope{
+		"service": service,
+	}
+
+	err = utils.WriteJSON(w, http.StatusOK, response, nil)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+	}
+}
+
+func (h *Handler) DeleteServiceHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the ID from the URL
+	id, err := utils.ReadIDParam(r)
+	if err != nil {
+		h.notFoundResponse(w, r)
+		return
+	}
+	
+	// Try to delete the service from the database
+	err = h.models.Services.Delete(int(id))
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.notFoundResponse(w, r)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	response := utils.Envelope{
+		"message": "service successfully deleted",
+	}
+
+	err = utils.WriteJSON(w, http.StatusOK, response, nil)
 	if err != nil {
 		h.serverErrorResponse(w, r, err)
 	}

@@ -228,3 +228,111 @@ func (b *BusinessModel) Get(id int) (*Business, error) {
 
 	return &business, nil
 }
+
+func (b *BusinessModel) GetByOwnerID(ownerID int) (*Business, error) {
+	if ownerID < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT id, name, bio, owner_id, email, phone, logo_url, slug, status, created_at, updated_at
+		FROM businesses
+		WHERE owner_id = $1`
+
+	var business Business
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := b.DB.QueryRowContext(ctx, query, ownerID).Scan(
+		&business.ID,
+		&business.Name,
+		&business.Bio,
+		&business.OwnerID,
+		&business.Email,
+		&business.Phone,
+		&business.LogoURL,
+		&business.Slug,
+		&business.Status,
+		&business.CreatedAt,
+		&business.UpdatedAt,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &business, nil
+}
+
+func (b *BusinessModel) Update(business *Business) error {
+	query := `
+		UPDATE businesses
+		SET name = $1, bio = $2, owner_id = $3, email = $4, phone = $5, logo_url = $6, slug = $7, status = $8
+		WHERE id = $9
+	`
+
+	args := []interface{}{
+		business.Name,
+		business.Bio,
+		business.OwnerID,
+		business.Email,
+		business.Phone,
+		business.LogoURL,
+		business.Slug,
+		business.Status,
+		business.ID,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := b.DB.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
+	return nil
+}
+
+func (b *BusinessModel) Delete(id int) error {
+	if id < 1 {
+		return ErrRecordNotFound
+	}
+
+	query := `
+		DELETE FROM businesses
+		WHERE id = $1
+	`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := b.DB.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
+	return nil
+}
