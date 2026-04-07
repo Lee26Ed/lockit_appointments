@@ -336,3 +336,21 @@ func (b *BusinessModel) Delete(id int) error {
 
 	return nil
 }
+
+func (b *BusinessModel) CanAccessBusinessData(currentUser *User, targetBusinessID int) (bool, error) {
+		
+	// Administrators can access any business data
+	if currentUser.RoleName == "admin" {
+		return true, nil
+	}
+
+	// Get the business to check its owner_id
+	business, err := b.Get(targetBusinessID)
+	if err != nil {
+		return false, err
+	}
+
+	// business owners can access their own business data
+	return business.OwnerID == currentUser.ID, nil
+
+}

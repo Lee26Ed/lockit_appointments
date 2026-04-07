@@ -324,6 +324,18 @@ func (u *UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error
 	return &user, nil
 }
 
+func (u *UserModel) CanAccessUserData(currentUser *User, targetUserID int) (bool, error) {
+		
+	// Administrators can access any user
+	if currentUser.RoleName == "admin" {
+		return true, nil
+	}
+	
+	// System Users can only access their own data
+	return currentUser.ID == targetUserID, nil
+
+}
+
 var ErrEditConflict = errors.New("edit conflict")
 
 // updates a user record in the database

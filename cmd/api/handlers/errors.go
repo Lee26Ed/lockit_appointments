@@ -87,3 +87,11 @@ func (h *Handler) inactiveAccountResponse(w http.ResponseWriter, r *http.Request
     message := "your user account must be activated to access this resource"
     h.errorResponseJSON(w, r, http.StatusForbidden, message)
 }
+
+// 403 Forbidden status if bad permission
+func (h *Handler) notPermittedResponse(w http.ResponseWriter,
+                                                       r *http.Request) {
+    message := "your user account doesn't have the necessary permissions to access this resource"
+
+    h.errorResponseJSON(w, r, http.StatusForbidden, message)
+}

@@ -163,6 +163,24 @@ func (h *Handler) RequireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
 	return h.RequireAuthenticatedUser(fn)
 }
 
+func (h *Handler) RequireRole(roleName string, next http.HandlerFunc) http.HandlerFunc {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		user := h.contextGetUser(r)
+
+		h.Logger.Info("user", "user requireRole", user)
+
+		// Check if the user has the required role
+		if user.RoleName != roleName {
+			h.notPermittedResponse(w, r)
+			return
+		}
+
+		// User has the correct role, continue
+		next.ServeHTTP(w, r)
+	}
+
+	return h.RequireActivatedUser(fn)
+}
 
 //* ----------------------------------------- Metrics Middlewares ----------------------------------------- *// 
 // expvar counters and maps

@@ -142,8 +142,11 @@ func (h *Handler) UpdateServiceHandler(w http.ResponseWriter, r *http.Request) {
 		h.notFoundResponse(w, r)
 		return
 	}
-	
-	// Try to get the service from the database
+
+	// get the current user 
+	currentUser := h.contextGetUser(r)
+
+	// try to get Service data
 	service, err := h.models.Services.Get(int(id))
 	if err != nil {
 		switch {
@@ -155,6 +158,17 @@ func (h *Handler) UpdateServiceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	canAccess, err := h.models.Businesses.CanAccessBusinessData(currentUser, service.BusinessID)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !canAccess {
+		h.notPermittedResponse(w, r)
+		return
+	}
+	
 	var input struct {
 		Name  *string `json:"name,omitempty"`
 		Price *int    `json:"price,omitempty"`
@@ -212,6 +226,30 @@ func (h *Handler) DeleteServiceHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := utils.ReadIDParam(r)
 	if err != nil {
 		h.notFoundResponse(w, r)
+		return
+	}
+
+	currentUser := h.contextGetUser(r)
+
+	service, err := h.models.Services.Get(int(id))
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.notFoundResponse(w, r)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	canAccess, err := h.models.Businesses.CanAccessBusinessData(currentUser, service.BusinessID)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !canAccess {
+		h.notPermittedResponse(w, r)
 		return
 	}
 	

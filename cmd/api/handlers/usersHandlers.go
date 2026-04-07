@@ -182,6 +182,21 @@ func (h *Handler) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 		h.notFoundResponse(w, r)
 		return
 	}
+
+	// get the current user 
+	currentUser := h.contextGetUser(r)
+
+	// Check if the current user can access this user's data
+	canAccess, err := h.models.Users.CanAccessUserData(currentUser, int(id))
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !canAccess {
+		h.notPermittedResponse(w, r)
+		return
+	}
 	
 	// Try to get the user from the database
 	user, err := h.models.Users.Get(int(id))
@@ -249,6 +264,21 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// get the current user 
+	currentUser := h.contextGetUser(r)
+
+	// Check if the current user can access this user's data
+	canAccess, err := h.models.Users.CanAccessUserData(currentUser, int(id))
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !canAccess {
+		h.notPermittedResponse(w, r)
+		return
+	}
+
 	// Get the existing user from the database
 	user, err := h.models.Users.Get(int(id))
 	if err != nil {
@@ -263,7 +293,6 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Parse the request body for updates
 	var clientData struct {
-		Username    *string `json:"username"`
 		Password    *string `json:"password,omitempty"`
 		Email       *string `json:"email"`
 	}
@@ -276,9 +305,6 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 		// Update only the fields that were provided
-	if clientData.Username != nil {
-		user.Username = *clientData.Username
-	}
 	if clientData.Email != nil {
 		user.Email = *clientData.Email
 	}
@@ -302,7 +328,13 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Update the user in the database
 	user, err = h.models.Users.Update(user)
 	if err != nil {
-		h.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, data.ErrDuplicateEmail):
+			v.AddError("email", "email address already in use")
+			h.failedValidationResponse(w, r, v.Errors)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
@@ -322,6 +354,21 @@ func (h *Handler) DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := utils.ReadIDParam(r)
 	if err != nil {
 		h.notFoundResponse(w, r)
+		return
+	}
+
+	// get the current user 
+	currentUser := h.contextGetUser(r)
+
+	// Check if the current user can access this user's data
+	canAccess, err := h.models.Users.CanAccessUserData(currentUser, int(id))
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !canAccess {
+		h.notPermittedResponse(w, r)
 		return
 	}
 

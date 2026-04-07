@@ -158,6 +158,21 @@ func (h *Handler) UpdateBusinessHandler(w http.ResponseWriter, r *http.Request) 
 		h.notFoundResponse(w, r)
 		return
 	}
+
+	// get the current user 
+	currentUser := h.contextGetUser(r)
+
+	// Check if the current user can access this Business' data
+	canAccess, err := h.models.Businesses.CanAccessBusinessData(currentUser, int(id))
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !canAccess {
+		h.notPermittedResponse(w, r)
+		return
+	}
 	
 	// Try to get the business from the database
 	business, err := h.models.Businesses.Get(int(id))
@@ -233,6 +248,21 @@ func (h *Handler) DeleteBusinessHandler(w http.ResponseWriter, r *http.Request) 
 	id, err := utils.ReadIDParam(r)
 	if err != nil {
 		h.notFoundResponse(w, r)
+		return
+	}
+
+	// get the current user 
+	currentUser := h.contextGetUser(r)
+
+	// Check if the current user can access this Business' data
+	canAccess, err := h.models.Businesses.CanAccessBusinessData(currentUser, int(id))
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !canAccess {
+		h.notPermittedResponse(w, r)
 		return
 	}
 	
