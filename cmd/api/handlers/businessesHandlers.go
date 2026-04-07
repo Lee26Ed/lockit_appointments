@@ -10,12 +10,14 @@ import (
 )
 
 func (h *Handler) CreateBusinessHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the current user from context and create a business with the current user as the owner
+	currentUser := h.contextGetUser(r)
+
 	var clientData struct {
 		Name 	  string `json:"name"`
 		Bio 	  string `json:"bio"`
 		Email 	  string `json:"email"`
 		Phone 	  string `json:"phone"`
-		OwnerID   int    `json:"owner_id"`
 	}
 
 	err := utils.ReadJSON(w, r, &clientData)
@@ -30,7 +32,7 @@ func (h *Handler) CreateBusinessHandler(w http.ResponseWriter, r *http.Request) 
 		Bio: clientData.Bio,
 		Email: clientData.Email,
 		Phone: clientData.Phone,
-		OwnerID: clientData.OwnerID,
+		OwnerID: currentUser.ID,
 		Status: data.BusinessStatusActive, // default status for new businesses
 		LogoURL: "https://via.placeholder.com/150", // set temp logo_url until we implement file uploads
 
@@ -73,6 +75,66 @@ func (h *Handler) CreateBusinessHandler(w http.ResponseWriter, r *http.Request) 
 
 	response := utils.Envelope{"business": Business}
 	err = utils.WriteJSON(w, http.StatusCreated, response, nil)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+	}
+}
+
+func (h *Handler) GetAllBusinessesHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		data.Filters
+	}
+
+	v := validator.New()
+
+	qs := r.URL.Query()
+
+	input.Filters.Page = utils.GetSingleIntegerParameter(qs, "page", 1, v)
+	input.Filters.PageSize = utils.GetSingleIntegerParameter(qs, "page_size", 20, v)
+	input.Filters.Sort = utils.GetSingleQueryParameter(qs, "sort", "id")
+	input.Filters.SortSafelist = []string{"id", "name", "-id", "-name"}
+
+	if data.ValidateFilters(v, input.Filters); !v.IsEmpty() {
+		h.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	businesses, metadata, err := h.models.Businesses.GetAll(input.Filters)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = utils.WriteJSON(w, http.StatusOK, utils.Envelope{"businesses": businesses, "metadata": metadata}, nil)
+	if err != nil {
+		h.serverErrorResponse(w, r, err)
+	}
+}
+
+func (h *Handler) GetBusinessHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the ID from the URL
+	id, err := utils.ReadIDParam(r)
+	if err != nil {
+		h.notFoundResponse(w, r)
+		return
+	}
+	
+	// Try to get the business from the database
+	business, err := h.models.Businesses.Get(int(id))
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.notFoundResponse(w, r)
+		default:
+			h.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	response := utils.Envelope{
+		"business": business,
+	}
+	err = utils.WriteJSON(w, http.StatusOK, response, nil)
 	if err != nil {
 		h.serverErrorResponse(w, r, err)
 	}

@@ -29,12 +29,18 @@ func (app *applicationDependencies) Routes() http.Handler{
 
 	// * Role routes
 	router.HandlerFunc(http.MethodPost, apiv+"/roles", h.CreateRoleHandler)
+	router.HandlerFunc(http.MethodGet, apiv+"/roles", h.GetAllRolesHandler)
+
 	router.HandlerFunc(http.MethodGet, apiv+"/roles/:id", h.GetRoleHandler)
 	router.HandlerFunc(http.MethodPut, apiv+"/roles/:id", h.UpdateRoleHandler)
 	router.HandlerFunc(http.MethodDelete, apiv+"/roles/:id", h.DeleteRoleHandler)
 
 	// * Businesses routes
-	router.HandlerFunc(http.MethodPost, apiv+"/businesses", h.CreateBusinessHandler)
+	router.HandlerFunc(http.MethodPost, apiv+"/businesses", 
+		h.RequireActivatedUser(h.CreateBusinessHandler))
+	router.HandlerFunc(http.MethodGet, apiv+"/businesses", h.GetAllBusinessesHandler)
+	
+	router.HandlerFunc(http.MethodGet, apiv+"/businesses/:id", h.GetBusinessHandler)
 	
 	// * Appointment routes
 	router.HandlerFunc(http.MethodGet, apiv+"/appointments", h.GetAppointmentsHandler)
@@ -45,8 +51,8 @@ func (app *applicationDependencies) Routes() http.Handler{
 	router.HandlerFunc(http.MethodGet, apiv+"/services", h.GetAllServicesHandler)
 
 	// * Token routes
-	router.HandlerFunc(http.MethodPost, apiv+"/tokens/authentication", h.CreateAuthTokenHandler)
-	router.HandlerFunc(http.MethodPost, apiv+"/tokens/activation", h.CreateActivationTokenHandler)
+	router.HandlerFunc(http.MethodPost, apiv+"/tokens/authenticate", h.CreateAuthTokenHandler)
+	router.HandlerFunc(http.MethodPost, apiv+"/tokens/activate", h.CreateActivationTokenHandler)
 	router.HandlerFunc(http.MethodDelete, apiv+"/tokens/user/:user_id", h.DeleteAllTokensForUserHandler)
 
 

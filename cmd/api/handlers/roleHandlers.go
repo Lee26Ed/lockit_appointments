@@ -39,7 +39,7 @@ func (h *Handler) CreateRoleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/v1/roles/%d", role.ID))
+	headers.Set("Location", fmt.Sprintf("/api/v1/roles/%d", role.ID))
 
 	err = utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"role": role}, headers)
 	if err != nil {
@@ -85,26 +85,17 @@ func (h *Handler) GetAllRolesHandler(w http.ResponseWriter, r *http.Request) {
 	input.Filters.Page = utils.GetSingleIntegerParameter(qs, "page", 1, v)
 	input.Filters.PageSize = utils.GetSingleIntegerParameter(qs, "page_size", 20, v)
 	input.Filters.Sort = utils.GetSingleQueryParameter(qs, "sort", "id")
-	input.Filters.SortSafelist = []string{"id", "role_name", "-id", "-role_name"}
+	input.Filters.SortSafelist = []string{"id", "role", "-id", "-role"}
 
 	if data.ValidateFilters(v, input.Filters); !v.IsEmpty() {
 		h.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	roles, err := h.models.Roles.GetAll()
+	roles, metadata, err := h.models.Roles.GetAll(input.Filters)
 	if err != nil {
 		h.serverErrorResponse(w, r, err)
 		return
-	}
-
-	// Create simple metadata since no pagination is implemented yet
-	metadata := data.Metadata{
-		CurrentPage:  1,
-		PageSize:     len(roles),
-		FirstPage:    1,
-		LastPage:     1,
-		TotalRecords: len(roles),
 	}
 
 	err = utils.WriteJSON(w, http.StatusOK, utils.Envelope{"roles": roles, "metadata": metadata}, nil)

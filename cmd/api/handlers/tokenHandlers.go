@@ -14,7 +14,7 @@ import (
 // createAuthTokenHandler handles POST /v1/tokens/authentication
 func (h *Handler) CreateAuthTokenHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Email    string        `json:"email"`
+		Username    string        `json:"username"`
 		Password string        `json:"password"`
 	}
 
@@ -25,7 +25,7 @@ func (h *Handler) CreateAuthTokenHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	v := validator.New()
-	data.ValidateEmail(v, input.Email)
+	v.Check(input.Username != "", "username", "must be provided")
 	data.ValidatePasswordPlaintext(v, input.Password)
 
 	if !v.IsEmpty() {
@@ -36,8 +36,9 @@ func (h *Handler) CreateAuthTokenHandler(w http.ResponseWriter, r *http.Request)
 	// Default TTL to 24 hours if not provided
 	ttl := 24 * time.Hour
 
-	// Is there an associated user for the provided email?
-    user, err := h.models.Users.GetByEmail(input.Email)
+	// Is there an associated user for the provided username?
+    user, err := h.models.Users.GetByUsername(input.Username)
+
     if err != nil {
         switch {
             case errors.Is(err, data.ErrRecordNotFound):

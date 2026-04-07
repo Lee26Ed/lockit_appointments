@@ -182,7 +182,7 @@ func (h *Handler) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 		h.notFoundResponse(w, r)
 		return
 	}
-
+	
 	// Try to get the user from the database
 	user, err := h.models.Users.Get(int(id))
 	if err != nil {
@@ -205,7 +205,25 @@ func (h *Handler) GetUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetAllUsersHandler(w http.ResponseWriter, r *http.Request) {
-	users, err := h.models.Users.GetAll()
+	var input struct {
+		data.Filters
+	}
+
+	v := validator.New()
+
+	qs := r.URL.Query()
+
+	input.Filters.Page = utils.GetSingleIntegerParameter(qs, "page", 1, v)
+	input.Filters.PageSize = utils.GetSingleIntegerParameter(qs, "page_size", 20, v)
+	input.Filters.Sort = utils.GetSingleQueryParameter(qs, "sort", "id")
+	input.Filters.SortSafelist = []string{"id", "status", "is_activated", "-id", "-status", "-is_activated"}
+
+	if data.ValidateFilters(v, input.Filters); !v.IsEmpty() {
+				h.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	users, metadata, err := h.models.Users.GetAll(input.Filters)
 	if err != nil {
 		h.serverErrorResponse(w, r, err)
 		return
@@ -213,7 +231,9 @@ func (h *Handler) GetAllUsersHandler(w http.ResponseWriter, r *http.Request) {
 	
 	response := utils.Envelope{
 		"users": users,
+		"metadata": metadata,
 	}
+	
 	err = utils.WriteJSON(w, http.StatusOK, response, nil)
 	if err != nil {
 		h.serverErrorResponse(w, r, err)
@@ -246,7 +266,6 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		Username    *string `json:"username"`
 		Password    *string `json:"password,omitempty"`
 		Email       *string `json:"email"`
-		RoleID      *int    `json:"role_id"`
 	}
 
 
@@ -262,9 +281,6 @@ func (h *Handler) UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if clientData.Email != nil {
 		user.Email = *clientData.Email
-	}
-	if clientData.RoleID != nil {
-		user.RoleID = *clientData.RoleID
 	}
 
 	// Update password if provided

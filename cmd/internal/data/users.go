@@ -184,26 +184,39 @@ func (u *UserModel) Get(id int) (*User, error) {
 	return &user, nil
 }
 
-func (u *UserModel) GetAll() ([]*User, error) {
+func (u *UserModel) GetAll(filters Filters) ([]*User, Metadata, error) {
 	query := `
-		SELECT id, username, email, password_hash, status, is_activated, last_login, created_at, updated_at, role_id
+		SELECT count(*) OVER() as total_count,
+		id, 
+		username, 
+		email, 
+		password_hash, 
+		status, 
+		is_activated, 
+		last_login, 
+		created_at, 
+		updated_at, 
+		role_id
 		FROM users
-		ORDER BY created_at DESC`
+		ORDER BY ` + filters.sortColumn() + ` ` + filters.sortDirection() + `
+		LIMIT $1 OFFSET $2`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := u.DB.QueryContext(ctx, query)
+	rows, err := u.DB.QueryContext(ctx, query, filters.limit(), filters.offset())
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 	defer rows.Close()
 
+	totalRecords := 0
 	users := []*User{}
 	
 	for rows.Next() {
 		var user User
 		err := rows.Scan(
+			&totalRecords,
 			&user.ID,
 			&user.Username,
 			&user.Email,
@@ -217,24 +230,26 @@ func (u *UserModel) GetAll() ([]*User, error) {
 
 		)
 		if err != nil {
-			return nil, err
+			return nil, Metadata{}, err
 		}
 		users = append(users, &user)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
-	return users, nil
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+
+	return users, metadata, nil
 }
 
-// Get a user from the database based on their email provided
-func (u *UserModel) GetByEmail(email string) (*User, error) {
+// Get a user from the database based on their username provided
+func (u *UserModel) GetByUsername(username string) (*User, error) {
 	query := `
 		SELECT id, username, email, password_hash, role_id, status, is_activated, last_login, created_at, updated_at
 		FROM users
-		WHERE email = $1
+		WHERE username = $1
 	`
 
 	var user User
@@ -242,7 +257,7 @@ func (u *UserModel) GetByEmail(email string) (*User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := u.DB.QueryRowContext(ctx, query, email).Scan(
+	err := u.DB.QueryRowContext(ctx, query, username).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
@@ -271,7 +286,7 @@ func (u *UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error
 
 	query := `
         SELECT users.id, users.created_at, users.username,
-               users.email, users.password_hash, users.status, 
+               users.email, users.status, users.is_activated,
                users.role_id, roles.role
         FROM users
         INNER JOIN auth_tokens as tokens
@@ -291,8 +306,8 @@ func (u *UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error
 		&user.CreatedAt,
 		&user.Username,
 		&user.Email,
-		&user.Password.hash,
 		&user.Status,
+		&user.IsActivated,
 		&user.RoleID,
 		&user.RoleName,
 	)
@@ -408,6 +423,10 @@ func (u *UserModel) Delete(id int) error {
 	}
 
 	return nil
+}
+
+func (u *User) IsAnonymous() bool {
+	return u == AnonymousUser
 }
 
 // CountUsers returns the total number of users in the database

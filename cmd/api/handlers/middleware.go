@@ -84,6 +84,8 @@ func (h *Handler) RateLimit(next http.Handler) http.Handler {
 	})
 }
 
+//* ----------------------------------------- Authentication Middleware ----------------------------------------- *//
+
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Vary", "Authorization")
@@ -132,6 +134,33 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 		// Call the next handler in the chain.
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (h *Handler) RequireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		user := h.contextGetUser(r)
+
+		if user.IsAnonymous() {
+			h.authenticationRequiredResponse(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (h *Handler) RequireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
+	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := h.contextGetUser(r)
+
+		if !user.IsActivated {
+			h.inactiveAccountResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+	return h.RequireAuthenticatedUser(fn)
 }
 
 

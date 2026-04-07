@@ -103,42 +103,48 @@ func (r *RoleModel) GetByName(name string) (*Role, error) {
 }
 
 // GetAll retrieves all roles from the database
-func (r *RoleModel) GetAll() ([]*Role, error) {
+func (r *RoleModel) GetAll(filters Filters) ([]*Role, Metadata, error) {
 	query := `
-		SELECT id, role
+		SELECT count(*) OVER() AS total_count,
+		id, 
+		role
 		FROM roles
-		ORDER BY role`
+		ORDER BY ` + filters.sortColumn() + ` ` + filters.sortDirection() + `
+		LIMIT $1 OFFSET $2`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := r.DB.QueryContext(ctx, query)
+	rows, err := r.DB.QueryContext(ctx, query, filters.limit(), filters.offset())
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 	defer rows.Close()
 
 	roles := []*Role{}
+	totalRecords := 0
 
 	for rows.Next() {
 		var role Role
 
 		err := rows.Scan(
+			&totalRecords,
 			&role.ID,
 			&role.RoleName,
 		)
 		if err != nil {
-			return nil, err
+			return nil, Metadata{}, err
 		}
 
 		roles = append(roles, &role)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
-	return roles, nil
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+	return roles, metadata, nil
 }
 
 // Update an existing role record in the database

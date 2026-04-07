@@ -21,8 +21,8 @@ type Business struct {
 	LogoURL string `json:"logo_url,omitempty"`
 	Slug string `json:"slug"`
 	Status BusinessStatus `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 type BusinessModel struct {
@@ -124,4 +124,107 @@ func (b *BusinessModel) Insert(business *Business) (*Business, error) {
 	}
 
 	return business, nil
+}
+
+func (b *BusinessModel) GetAll(filters Filters) ([]*Business, Metadata, error) {
+	query := `
+		SELECT count(*) OVER() AS total_count,
+		id, 
+		name,
+		bio,
+		owner_id,
+		email,
+		phone,
+		logo_url,
+		slug,
+		status,
+		created_at,
+		updated_at
+		FROM businesses
+		ORDER BY ` + filters.sortColumn() + ` ` + filters.sortDirection() + `
+		LIMIT $1 OFFSET $2`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := b.DB.QueryContext(ctx, query, filters.limit(), filters.offset())
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+	defer rows.Close()
+
+	businesses := []*Business{}
+	totalRecords := 0
+
+	for rows.Next() {
+		var business Business
+
+		err := rows.Scan(
+			&totalRecords,
+			&business.ID,
+			&business.Name,
+			&business.Bio,
+			&business.OwnerID,
+			&business.Email,
+			&business.Phone,
+			&business.LogoURL,
+			&business.Slug,
+			&business.Status,
+			&business.CreatedAt,
+			&business.UpdatedAt,
+		)
+		if err != nil {
+			return nil, Metadata{}, err
+		}
+
+		businesses = append(businesses, &business)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+	return businesses, metadata, nil
+}
+
+func (b *BusinessModel) Get(id int) (*Business, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT id, name, bio, owner_id, email, phone, logo_url, slug, status, created_at, updated_at
+		FROM businesses
+		WHERE id = $1`
+
+	var business Business
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := b.DB.QueryRowContext(ctx, query, id).Scan(
+		&business.ID,
+		&business.Name,
+		&business.Bio,
+		&business.OwnerID,
+		&business.Email,
+		&business.Phone,
+		&business.LogoURL,
+		&business.Slug,
+		&business.Status,
+		&business.CreatedAt,
+		&business.UpdatedAt,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &business, nil
 }
