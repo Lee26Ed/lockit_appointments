@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Belize Police Department - Database Setup Script
+# Lockit Appointments - Database Setup Script
 # This script creates the PostgreSQL database and user for the Lockit Appointments system
 # Usage: ./setup_database.sh <db_name> <db_user> <db_password> [db_host] [db_port]
 
@@ -127,7 +127,7 @@ test_connection() {
 # Main execution
 main() {
     echo "================================================"
-    echo "Belize Police Department - Database Setup"
+    echo "Lockit Appointments - Database Setup"
     echo "================================================"
     echo
     

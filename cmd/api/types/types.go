@@ -5,4 +5,19 @@ type ServerConfig struct {
 	Environment string
 	DSN string
 	AppVersion string
+	Limiter struct {
+		RPS     float64
+		Burst   int
+		Enabled bool
+	}
+	CORS struct {
+		TrustedOrigins []string
+	}
+	SMTP struct {
+		Host     string
+		Port     int
+		Username string
+		Password string
+		Sender   string
+	}
 }

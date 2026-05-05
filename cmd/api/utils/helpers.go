@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -150,4 +151,25 @@ func GetSingleQueryParameter(
         return defaultValue
     }
     return result                                                                      
+}
+
+func GenerateSlug(name string) string {
+	// 1. lowercase
+	slug := strings.ToLower(name)
+
+	// 2. replace non-alphanumeric with hyphen
+	slug = strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return '-'
+	}, slug)
+
+	// 3. remove multiple hyphens
+	slug = regexp.MustCompile(`-+`).ReplaceAllString(slug, "-")
+
+	// 4. trim hyphens
+	slug = strings.Trim(slug, "-")
+
+	return slug
 }

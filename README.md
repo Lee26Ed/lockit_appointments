@@ -1,196 +1,185 @@
-[![GitHub Workflow Status (branch)](https://img.shields.io/github/actions/workflow/status/golang-migrate/migrate/ci.yaml?branch=master)](https://github.com/golang-migrate/migrate/actions/workflows/ci.yaml?query=branch%3Amaster)
-[![GoDoc](https://pkg.go.dev/badge/github.com/golang-migrate/migrate)](https://pkg.go.dev/github.com/golang-migrate/migrate/v4)
-[![Coverage Status](https://img.shields.io/coveralls/github/golang-migrate/migrate/master.svg)](https://coveralls.io/github/golang-migrate/migrate?branch=master)
-[![packagecloud.io](https://img.shields.io/badge/deb-packagecloud.io-844fec.svg)](https://packagecloud.io/golang-migrate/migrate?filter=debs)
-[![Docker Pulls](https://img.shields.io/docker/pulls/migrate/migrate.svg)](https://hub.docker.com/r/migrate/migrate/)
-![Supported Go Versions](https://img.shields.io/badge/Go-1.24%2C%201.25-lightgrey.svg)
-[![GitHub Release](https://img.shields.io/github/release/golang-migrate/migrate.svg)](https://github.com/golang-migrate/migrate/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/golang-migrate/migrate/v4)](https://goreportcard.com/report/github.com/golang-migrate/migrate/v4)
+# Lockit Appointments API
 
-# migrate
+A RESTful API for managing appointments, built with Go and PostgreSQL. The system handles business appointments with support for users, staff, services, and review functionality.
 
-__Database migrations written in Go. Use as [CLI](#cli-usage) or import as [library](#use-in-your-go-project).__
+## System Overview
 
-* Migrate reads migrations from [sources](#migration-sources)
-   and applies them in correct order to a [database](#databases).
-* Drivers are "dumb", migrate glues everything together and makes sure the logic is bulletproof.
-   (Keeps the drivers lightweight, too.)
-* Database drivers don't assume things or try to correct user input. When in doubt, fail.
+- **User Management**: Create and manage user accounts with role-based access control
+- **Business Management**: Register and manage service-providing businesses
+- **Staff Management**: Manage business staff members and their schedules
+- **Services**: Define and manage business services
+- **Appointments**: Book, track, and manage service appointments with status tracking
+- **Reviews**: Allow users to leave reviews for appointments
+- **Rate Limiting**: Built-in rate limiting to prevent API abuse
+- **CORS Support**: Configured CORS for cross-origin requests
+- **Response Compression**: Automatic gzip compression for supported clients
 
-Forked from [mattes/migrate](https://github.com/mattes/migrate)
+## Prerequisites
 
-## Databases
+- **Go**: 1.25.0 or later
+- **PostgreSQL**: 12 or later
+- **migrate**: Database migration tool
+- **bash**: For running setup scripts
 
-Database drivers run migrations. [Add a new database?](database/driver.go)
-
-* [PostgreSQL](database/postgres)
-* [PGX v4](database/pgx)
-* [PGX v5](database/pgx/v5)
-* [Redshift](database/redshift)
-* [Ql](database/ql)
-* [Cassandra / ScyllaDB](database/cassandra)
-* [SQLite](database/sqlite)
-* [SQLite3](database/sqlite3) ([todo #165](https://github.com/mattes/migrate/issues/165))
-* [SQLCipher](database/sqlcipher)
-* [MySQL / MariaDB](database/mysql)
-* [Neo4j](database/neo4j)
-* [MongoDB](database/mongodb)
-* [CrateDB](database/crate) ([todo #170](https://github.com/mattes/migrate/issues/170))
-* [Shell](database/shell) ([todo #171](https://github.com/mattes/migrate/issues/171))
-* [Google Cloud Spanner](database/spanner)
-* [CockroachDB](database/cockroachdb)
-* [YugabyteDB](database/yugabytedb)
-* [ClickHouse](database/clickhouse)
-* [Firebird](database/firebird)
-* [MS SQL Server](database/sqlserver)
-* [rqlite](database/rqlite)
-
-### Database URLs
-
-Database connection strings are specified via URLs. The URL format is driver dependent but generally has the form: `dbdriver://username:password@host:port/dbname?param1=true&param2=false`
-
-Any [reserved URL characters](https://en.wikipedia.org/wiki/Percent-encoding#Percent-encoding_reserved_characters) need to be escaped. Note, the `%` character also [needs to be escaped](https://en.wikipedia.org/wiki/Percent-encoding#Percent-encoding_the_percent_character)
-
-Explicitly, the following characters need to be escaped:
-`!`, `#`, `$`, `%`, `&`, `'`, `(`, `)`, `*`, `+`, `,`, `/`, `:`, `;`, `=`, `?`, `@`, `[`, `]`
-
-It's easiest to always run the URL parts of your DB connection URL (e.g. username, password, etc) through an URL encoder. See the example Python snippets below:
+### Installing Dependencies
 
 ```bash
-$ python3 -c 'import urllib.parse; print(urllib.parse.quote(input("String to encode: "), ""))'
-String to encode: FAKEpassword!#$%&'()*+,/:;=?@[]
-FAKEpassword%21%23%24%25%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D
-$ python2 -c 'import urllib; print urllib.quote(raw_input("String to encode: "), "")'
-String to encode: FAKEpassword!#$%&'()*+,/:;=?@[]
-FAKEpassword%21%23%24%25%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D
-$
+# On macOS (with Homebrew)
+brew install go postgresql migrate
+
+# On Ubuntu/Debian
+sudo apt-get install golang-go postgresql postgresql-contrib
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 ```
 
-## Migration Sources
+## Getting Started
 
-Source drivers read migrations from local or remote sources. [Add a new source?](source/driver.go)
+### 1. Environment Setup
 
-* [Filesystem](source/file) - read from filesystem
-* [io/fs](source/iofs) - read from a Go [io/fs](https://pkg.go.dev/io/fs#FS)
-* [Go-Bindata](source/go_bindata) - read from embedded binary data ([jteeuwen/go-bindata](https://github.com/jteeuwen/go-bindata))
-* [pkger](source/pkger) - read from embedded binary data ([markbates/pkger](https://github.com/markbates/pkger))
-* [GitHub](source/github) - read from remote GitHub repositories
-* [GitHub Enterprise](source/github_ee) - read from remote GitHub Enterprise repositories
-* [Bitbucket](source/bitbucket) - read from remote Bitbucket repositories
-* [Gitlab](source/gitlab) - read from remote Gitlab repositories
-* [AWS S3](source/aws_s3) - read from Amazon Web Services S3
-* [Google Cloud Storage](source/google_cloud_storage) - read from Google Cloud Platform Storage
-
-## CLI usage
-
-* Simple wrapper around this library.
-* Handles ctrl+c (SIGINT) gracefully.
-* No config search paths, no config files, no magic ENV var injections.
-
-[CLI Documentation](cmd/migrate) (includes CLI install instructions)
-
-### Basic usage
+Create a `.envrc` file in the project root with your database credentials:
 
 ```bash
-$ migrate -source file://path/to/migrations -database postgres://localhost:5432/database up 2
+export DB_DSN="postgres://lockit_user:your_password@localhost:5432/lockit_appointments?sslmode=disable"
+export DB_NAME="lockit_appointments"
+export DB_USER="lockit_user"
+export DB_PASSWORD="your_password"
+export DB_HOST="localhost"
+export DB_PORT="5432"
 ```
 
-### Docker usage
+### 2. Database Setup
+
+Run the setup script to create the database and user:
 
 ```bash
-$ docker run -v {{ migration dir }}:/migrations --network host migrate/migrate
-    -path=/migrations/ -database postgres://localhost:5432/database up 2
+make db/setup
 ```
 
-## Use in your Go project
+This will:
 
-* API is stable and frozen for this release (v3 & v4).
-* Uses [Go modules](https://golang.org/cmd/go/#hdr-Modules__module_versions__and_more) to manage dependencies.
-* To help prevent database corruptions, it supports graceful stops via `GracefulStop chan bool`.
-* Bring your own logger.
-* Uses `io.Reader` streams internally for low memory overhead.
-* Thread-safe and no goroutine leaks.
+- Create a PostgreSQL database named `lockit_appointments`
+- Create a dedicated user `lockit_user`
+- Set up necessary permissions
 
-__[Go Documentation](https://pkg.go.dev/github.com/golang-migrate/migrate/v4)__
+### 3. Run Migrations
 
-```go
-import (
-    "github.com/golang-migrate/migrate/v4"
-    _ "github.com/golang-migrate/migrate/v4/database/postgres"
-    _ "github.com/golang-migrate/migrate/v4/source/github"
-)
-
-func main() {
-    m, err := migrate.New(
-        "github://mattes:personal-access-token@mattes/migrate_test",
-        "postgres://localhost:5432/database?sslmode=enable")
-    m.Steps(2)
-}
-```
-
-Want to use an existing database client?
-
-```go
-import (
-    "database/sql"
-    _ "github.com/lib/pq"
-    "github.com/golang-migrate/migrate/v4"
-    "github.com/golang-migrate/migrate/v4/database/postgres"
-    _ "github.com/golang-migrate/migrate/v4/source/file"
-)
-
-func main() {
-    db, err := sql.Open("postgres", "postgres://localhost:5432/database?sslmode=enable")
-    driver, err := postgres.WithInstance(db, &postgres.Config{})
-    m, err := migrate.NewWithDatabaseInstance(
-        "file:///migrations",
-        "postgres", driver)
-    m.Up() // or m.Steps(2) if you want to explicitly set the number of migrations to run
-}
-```
-
-## Getting started
-
-Go to [getting started](GETTING_STARTED.md)
-
-## Tutorials
-
-* [CockroachDB](database/cockroachdb/TUTORIAL.md)
-* [PostgreSQL](database/postgres/TUTORIAL.md)
-
-(more tutorials to come)
-
-## Migration files
-
-Each migration has an up and down migration. [Why?](FAQ.md#why-two-separate-files-up-and-down-for-a-migration)
+Apply all database migrations:
 
 ```bash
-1481574547_create_users_table.up.sql
-1481574547_create_users_table.down.sql
+make db/migrations/up
 ```
 
-[Best practices: How to write migrations.](MIGRATIONS.md)
+This creates the following tables and structures:
 
-## Coming from another db migration tool?
+- `roles` - User roles (admin, staff, customer)
+- `users` - System users
+- `businesses` - Service-providing businesses
+- `business_staff` - Staff members of businesses
+- `staff_schedule` - Staff working schedules
+- `services` - Business services offered
+- `appointments` - Appointment bookings with status tracking
+- `reviews` - User reviews for appointments
+- `appointment_status` - ENUM type for appointment statuses
 
-Check out [migradaptor](https://github.com/musinit/migradaptor/).
-*Note: migradaptor is not affiliated or supported by this project*
+### 4. Start the API Server
 
-## Versions
+```bash
+make run
+```
 
-Version | Supported? | Import | Notes
---------|------------|--------|------
-**master** | :white_check_mark: | `import "github.com/golang-migrate/migrate/v4"` | New features and bug fixes arrive here first |
-**v4** | :white_check_mark: | `import "github.com/golang-migrate/migrate/v4"` | Used for stable releases |
-**v3** | :x: | `import "github.com/golang-migrate/migrate"` (with package manager) or `import "gopkg.in/golang-migrate/migrate.v3"` (not recommended) | **DO NOT USE** - No longer supported |
+The API will start on `http://localhost:3000`.
 
-## Development and Contributing
+## API Configuration
 
-Yes, please! [`Makefile`](Makefile) is your friend,
-read the [development guide](CONTRIBUTING.md).
+The API runs with the following default settings:
 
-Also have a look at the [FAQ](FAQ.md).
+- **Port**: `3000`
+- **Environment**: `development`
+- **Rate Limiting**:
+    - Enabled by default
+    - RPS (Requests Per Second): `2`
+    - Burst: `5` requests
+- **CORS**: Trusted origin set to `http://localhost:9000`
 
----
+## Available Make Commands
 
-Looking for alternatives? [https://awesome-go.com/#database](https://awesome-go.com/#database).
+### Database Operations
+
+```bash
+# Run migrations up
+make db/migrations/up
+
+# Rollback last migration
+make db/migrations/down
+
+# Rollback to specific version
+make db/migrations/down version=N
+
+# Check current migration version
+make db/migrations/version
+
+# Force migration to specific version (use with caution)
+make db/migrations/force version=N
+
+# Setup initial database
+make db/setup
+
+# Connect to database with psql
+make db/psql
+```
+
+### Application
+
+```bash
+# Run the API server
+make run
+
+# Create a new migration
+make db/migrations/new name=migration_name
+```
+
+### Middlewares
+
+The API includes several middleware layers:
+
+1. **CORS Middleware** - Handles cross-origin requests
+2. **Rate Limiting** - Protects API from abuse with IP-based rate limiting
+3. **Logging** - Emits structured JSON logs for all requests with:
+    - HTTP method and path
+    - Client IP address
+    - Status code
+    - Response size
+    - Request duration
+4. **Gzip Compression** - Automatically compresses responses when client sends `Accept-Encoding: gzip`
+
+### Error Handling
+
+The API provides standardized error responses in JSON format:
+
+- `400 Bad Request` - Invalid request data
+- `404 Not Found` - Resource not found
+- `409 Conflict` - Edit conflict (concurrent modification)
+- `422 Unprocessable Entity` - Validation errors
+- `429 Too Many Requests` - Rate limit exceeded (includes `Retry-After` header)
+- `500 Internal Server Error` - Server errors
+
+## Development
+
+### Project Structure
+
+```
+cmd/api/
+├── main.go              # Application entry point
+├── server.go            # Server configuration
+├── routes.go            # Route definitions
+├── handlers/            # HTTP request handlers
+├── types/               # Type definitions
+└── utils/               # Utility functions
+
+cmd/internal/
+├── data/                # Data models and database operations
+└── validator/           # Input validation
+
+migrations/              # Database migration files
+scripts/                 # Setup and utility scripts
+```
