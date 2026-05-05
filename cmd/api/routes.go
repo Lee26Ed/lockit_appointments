@@ -87,6 +87,7 @@ func (app *applicationDependencies) Routes() http.Handler{
 	handler = h.RateLimit(handler)
 	handler = h.LoggingMiddleware(handler)
 	handler = h.Authenticate(handler)
+	handler = h.NoCache(handler)
 	handler = h.GzipMiddleware(handler)
 	return handler
 

@@ -67,19 +67,4 @@ export const DataService = {
             emitter.emit('services:error', err.message);
         }
     },
-
-    async createService(payload) {
-        emitter.emit('services:loading');
-        try {
-            const res = await fetch(`${API_BASE}/services`, this.buildFetchOptions('POST', payload));
-            if (!res.ok) { 
-                throw new Error(`Server error: ${res.status}`);
-            }
-
-            const newService = await res.json();
-            emitter.emit('services:created', newService);
-        } catch (err) {
-            emitter.emit('services:error', err.message);
-        }
-    }
 }

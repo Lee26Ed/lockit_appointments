@@ -1,15 +1,12 @@
 import { emitter }     from './modules/event-emitter.js'
 import { DataService } from './modules/data-service.js'
 
-// DataService.setAuthToken('DVXFATM4DTOU53A5AV5CNY7M5M');
   
-// ── 1. State — single source of truth ──
+// ── State — single source of truth ──
 const state = { 
                services: [],
                loading: false,
                error: null,
-               currentPage: 1,
-               pageSize: 5,
                metadata: {
                  current_page: 1,
                  page_size: 5,
@@ -59,9 +56,9 @@ function render() {
 
   // Render pagination controls
   let paginationHTML = `
-    <button id="prev-btn" ${state.currentPage === 1 ? 'disabled' : ''}>← Previous</button>
-    <span class="page-info">Page ${state.currentPage} of ${totalPages}</span>
-    <button id="next-btn" ${state.currentPage === totalPages ? 'disabled' : ''}>Next →</button>
+    <button id="prev-btn" ${state.metadata.current_page === 1 ? 'disabled' : ''}>← Previous</button>
+    <span class="page-info">Page ${state.metadata.current_page} of ${totalPages}</span>
+    <button id="next-btn" ${state.metadata.current_page === totalPages ? 'disabled' : ''}>Next →</button>
   `
   paginationControls.innerHTML = paginationHTML
 
@@ -70,21 +67,21 @@ function render() {
   const nextBtn = document.querySelector('#next-btn')
 
   if (prevBtn) prevBtn.addEventListener('click', () => {
-    if (state.currentPage > 1) {
-      state.currentPage--
-      DataService.fetchServices(state.currentPage, state.pageSize)
+    if (state.metadata.current_page > 1) {
+      state.metadata.current_page--
+      DataService.fetchServices(state.metadata.current_page, state.metadata.page_size)
     }
   })
 
   if (nextBtn) nextBtn.addEventListener('click', () => {
-    if (state.currentPage < totalPages) {
-      state.currentPage++
-      DataService.fetchServices(state.currentPage, state.pageSize)
+    if (state.metadata.current_page < totalPages) {
+      state.metadata.current_page++
+      DataService.fetchServices(state.metadata.current_page, state.metadata.page_size)
     }
   })
 }
 
-// ── 3. Observers — update state, then call render() ───
+// ── Observers — update state, then call render() ───
   emitter.on('services:loading', () => {
   state.loading = true
   state.error   = null
@@ -94,7 +91,6 @@ function render() {
   emitter.on('services:loaded', (data) => {
   state.services = data.services
   state.metadata = data.metadata
-  state.currentPage = data.metadata.current_page
   state.loading = false
   render()
 })
@@ -106,6 +102,6 @@ emitter.on('services:error', (msg) => {
   })
 
 
-    // ── 4. Boot ──
-   render()                    // initial paint (empty state)
-   DataService.fetchServices()   // kick off the first fetch
+    // ── Boot ──
+   render()                    
+   DataService.fetchServices(state.metadata.current_page, state.metadata.page_size)   // kick off the first fetch
