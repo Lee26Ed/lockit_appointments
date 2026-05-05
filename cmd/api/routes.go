@@ -14,6 +14,15 @@ func (app *applicationDependencies) Routes() http.Handler{
 	router := httprouter.New()
 	h := handlers.NewHandler(app.config, app.logger, app.models, &app.wg, &app.mailer)
 
+	//* ----------------- UI file route ----------------- *//
+	// Serve static files using http.ServeMux for proper file serving
+	mux := http.NewServeMux()
+	fs := http.FileServer(http.Dir("./cmd/web/UI"))
+	mux.Handle("/", fs)
+	// Mount API routes under /api/v1
+	mux.Handle("/api/", router)
+    
+
 	//* ----------------- General routes (public) ----------------- *//
 	router.HandlerFunc(http.MethodGet, apiv+"/healthcheck", h.HealthcheckHandler)
 	router.HandlerFunc(http.MethodGet, apiv+"/metrics", h.MetricsHandler)
@@ -71,8 +80,8 @@ func (app *applicationDependencies) Routes() http.Handler{
 	router.HandlerFunc(http.MethodDelete, apiv+"/tokens/user/:user_id", h.DeleteAllTokensForUserHandler)
 
 
-	// wrap router with middleware
-	handler := h.Metrics(router)
+	// wrap mux with middleware
+	handler := h.Metrics(mux)
 	handler = h.RecoverPanic(handler)
 	handler = h.EnableCORS(handler)
 	handler = h.RateLimit(handler)

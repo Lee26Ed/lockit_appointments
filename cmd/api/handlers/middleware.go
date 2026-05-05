@@ -361,7 +361,7 @@ func (h *Handler) EnableCORS(next http.Handler) http.Handler {
 					if r.Method == http.MethodOptions && 
 						r.Header.Get("Access-Control-Request-Method") != "" {
 							w.Header().Set("Access-Control-Allow-Methods",
-											"OPTIONS, PUT, PATCH, DELETE")
+											"OPTIONS, PUT, PATCH, DELETE, GET, POST")
 							w.Header().Set("Access-Control-Allow-Headers",
 											"Authorization, Content-Type")
 						

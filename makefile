@@ -11,7 +11,7 @@ run:
 		-limiter-burst=5 \
 		-limiter-rps=2 \
 		-limiter-enabled=true \
-		-cors-trusted-origins="http://localhost:9000"
+		-cors-trusted-origins="http://localhost:* http://10.10.2.91:* http://172.24.128.1:*"
 
 ## run/no-limiter: run the cmd/api application with rate limiter disabled
 .PHONY: run/no-limiter
